@@ -17,6 +17,7 @@ from support.api.authentication import ChatSessionAuthentication
 from support.api.serializers import ChatMessageSerializer
 from support.services.chat import (
     ConversationChanged,
+    KnowledgeChanged,
     conversation_history,
     get_conversation,
     send_message,
@@ -52,7 +53,7 @@ def chat_api(request):
             serializer.validated_data["content"],
         )
 
-    except ConversationChanged as exc:
+    except (ConversationChanged, KnowledgeChanged) as exc:
         return Response(
             {"error": str(exc)},
             status=409,

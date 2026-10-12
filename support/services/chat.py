@@ -2,6 +2,9 @@ import re
 
 from django.db import transaction
 
+from support.ai.agent import (
+    search_with_agent as search_knowledge_base,
+)
 from support.ai.answers import (
     ChatError,
     generate_answer,
@@ -10,15 +13,19 @@ from support.ai.answers import (
 from support.models import (
     Conversation,
     DocumentChunk,
+    KnowledgeDocument,
     Message,
     MessageCitation,
 )
-from support.ai.agent import (
-    search_with_agent as search_knowledge_base,
-)
+
 
 class ConversationChanged(ChatError):
     pass
+
+
+class KnowledgeChanged(ChatError):
+    pass
+
 
 FALLBACK = (
     "I don't have enough consistent information in the store documents "
@@ -88,6 +95,66 @@ def policy_only_escalation_text(text):
     return " ".join(kept)
 
 
+def validate_current_evidence(matches):
+    """Called inside the transaction, after AI generation finishes."""
+    if not matches:
+        return
+
+    error_message = (
+        "The store documents changed while this answer was being "
+        "prepared. Please send your question again."
+    )
+
+    expected_ids = {match["chunk_id"] for match in matches}
+
+    document_ids = set(
+        DocumentChunk.objects.filter(pk__in=expected_ids)
+        .values_list("document_id", flat=True)
+    )
+
+    # Lock documents before chunks, matching document-processing
+    # operations. Network calls have already finished.
+    documents = {
+        document.pk: document
+        for document in (
+            KnowledgeDocument.objects.select_for_update()
+            .filter(pk__in=document_ids)
+            .order_by("pk")
+        )
+    }
+
+    chunks = {
+        chunk.pk: chunk
+        for chunk in (
+            DocumentChunk.objects.select_for_update()
+            .filter(pk__in=expected_ids)
+            .order_by("pk")
+        )
+    }
+
+    if set(chunks) != expected_ids:
+        raise KnowledgeChanged(error_message)
+
+    for match in matches:
+        chunk = chunks[match["chunk_id"]]
+        document = documents.get(chunk.document_id)
+
+        if document is None:
+            raise KnowledgeChanged(error_message)
+
+        if (
+            not document.is_active
+            or document.status != KnowledgeDocument.Status.READY
+            or document.version != match.get(
+                "document_version", document.version
+            )
+            or document.title != match["title"]
+            or chunk.text != match["text"]
+            or chunk.page_number != match["page_number"]
+        ):
+            raise KnowledgeChanged(error_message)
+
+
 def send_message(conversation_id, question):
     conversation = Conversation.objects.get(
         pk=conversation_id
@@ -97,6 +164,7 @@ def send_message(conversation_id, question):
         conversation.messages.order_by("-id")[:6]
     )
     expected_last_id = recent[0].pk if recent else None
+
     history = [
         {
             "role": message.role,
@@ -174,17 +242,10 @@ def send_message(conversation_id, question):
                 "and send your question again."
             )
 
-        live_chunk_ids = set(
-            DocumentChunk.objects.select_for_update()
-            .filter(
-                pk__in=[
-                    source_map[key]["chunk_id"]
-                    for key in selected_keys
-                ]
-            )
-            .order_by("pk")
-            .values_list("pk", flat=True)
-        )
+        if selected_keys:
+            # Every supplied passage may have influenced the answer,
+            # including passages the model did not ultimately cite.
+            validate_current_evidence(list(source_map.values()))
 
         customer_message = Message.objects.create(
             conversation=conversation,
@@ -202,11 +263,7 @@ def send_message(conversation_id, question):
             [
                 MessageCitation(
                     message=assistant_message,
-                    chunk_id=(
-                        source_map[key]["chunk_id"]
-                        if source_map[key]["chunk_id"] in live_chunk_ids
-                        else None
-                    ),
+                    chunk_id=source_map[key]["chunk_id"],
                     source_key=key,
                     document_title=source_map[key]["title"],
                     document_version=source_map[key].get(

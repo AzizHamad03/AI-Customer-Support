@@ -3,8 +3,13 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from langchain_core.exceptions import OutputParserException
 
-from support.ai.answers import ChatError, GroundedAnswer
+from support.ai.answers import (
+    ChatError,
+    GroundedAnswer,
+    generate_answer,
+)
 from support.ai.embeddings import EmbeddingError
 from support.models import (
     Conversation,
@@ -28,7 +33,7 @@ class RagFailureTests(TestCase):
             title="Shipping policy",
             file="documents/test.txt",
             uploaded_by=staff,
-            status="ready",
+            status=KnowledgeDocument.Status.READY,
             is_active=True,
         )
 
@@ -315,23 +320,104 @@ class RagFailureTests(TestCase):
         self.assertEqual(Message.objects.count(), 1)
         self.assertEqual(MessageCitation.objects.count(), 0)
 
-    def test_chunk_deleted_during_generation_keeps_evidence_snapshot(self):
+    def test_chunk_deleted_during_generation_rejects_new_answer(self):
         def delete_source(*args):
             self.chunk.delete()
             return self.answer()
 
         self.generate.side_effect = delete_source
 
-        send_message(
-            self.conversation.pk,
-            "Shipping cost?",
+        response = self.client.post(
+            reverse("support:chat_api"),
+            {"content": "Shipping cost?"},
+            content_type="application/json",
         )
 
-        citation = MessageCitation.objects.get()
-
-        self.assertIsNone(citation.chunk_id)
-        self.assertEqual(
-            citation.source_text,
-            "Shipping costs SAR 25.",
+        self.assertEqual(response.status_code, 409)
+        self.assertIn(
+            "store documents changed",
+            response.json()["error"],
         )
-        self.assertEqual(citation.document_version, 1)
+        self.assertEqual(Message.objects.count(), 0)
+        self.assertEqual(MessageCitation.objects.count(), 0)
+
+    def test_changed_document_rejects_new_answer(self):
+        changes = [
+            {"is_active": False},
+            {"status": KnowledgeDocument.Status.EXTRACTED},
+            {"version": 2},
+        ]
+
+        for change in changes:
+            with self.subTest(change=change):
+                KnowledgeDocument.objects.filter(
+                    pk=self.document.pk
+                ).update(
+                    is_active=True,
+                    status=KnowledgeDocument.Status.READY,
+                    version=1,
+                )
+
+                def change_document(*args):
+                    KnowledgeDocument.objects.filter(
+                        pk=self.document.pk
+                    ).update(**change)
+                    return self.answer()
+
+                self.generate.side_effect = change_document
+
+                response = self.client.post(
+                    reverse("support:chat_api"),
+                    {"content": "Shipping cost?"},
+                    content_type="application/json",
+                )
+
+                self.assertEqual(response.status_code, 409)
+                self.assertEqual(Message.objects.count(), 0)
+                self.assertEqual(MessageCitation.objects.count(), 0)
+
+    def test_changed_passage_rejects_new_answer(self):
+        def change_passage(*args):
+            DocumentChunk.objects.filter(
+                pk=self.chunk.pk
+            ).update(text="Shipping now costs SAR 20.")
+            return self.answer()
+
+        self.generate.side_effect = change_passage
+
+        response = self.client.post(
+            reverse("support:chat_api"),
+            {"content": "Shipping cost?"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(Message.objects.count(), 0)
+        self.assertEqual(MessageCitation.objects.count(), 0)
+
+    def test_malformed_model_output_returns_error_without_saving(self):
+        # Run the real answer-generation error handling, while
+        # replacing the external model call.
+        self.generate.side_effect = generate_answer
+
+        with patch(
+            "support.ai.answers.get_chat_model"
+        ) as get_model:
+            structured_model = (
+                get_model.return_value
+                .with_structured_output.return_value
+            )
+            structured_model.invoke.side_effect = (
+                OutputParserException("Malformed model response")
+            )
+
+            response = self.client.post(
+                reverse("support:chat_api"),
+                {"content": "Shipping cost?"},
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("error", response.json())
+        self.assertEqual(Message.objects.count(), 0)
+        self.assertEqual(MessageCitation.objects.count(), 0)

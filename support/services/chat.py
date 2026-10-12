@@ -17,7 +17,9 @@ from support.models import (
     Message,
     MessageCitation,
 )
+from django.contrib.auth import get_user_model
 
+from support.services.accounts import ACTIVE_CONVERSATION_KEY
 
 class ConversationChanged(ChatError):
     pass
@@ -34,12 +36,46 @@ FALLBACK = (
 )
 
 
-def get_conversation(session):
+def get_conversation(session, user=None):
+    if user is not None and user.is_authenticated:
+        with transaction.atomic():
+            get_user_model().objects.select_for_update().get(
+                pk=user.pk
+            )
+
+            conversation = None
+            active_id = session.get(ACTIVE_CONVERSATION_KEY)
+
+            # Never trust a session-supplied conversation ID without
+            # verifying account ownership.
+            if isinstance(active_id, int):
+                conversation = Conversation.objects.filter(
+                    pk=active_id,
+                    user=user,
+                ).first()
+
+            if conversation is None:
+                conversation = (
+                    Conversation.objects.filter(user=user)
+                    .order_by("-updated_at", "-pk")
+                    .first()
+                )
+
+            if conversation is None:
+                conversation = Conversation.objects.create(
+                    user=user,
+                    session_key=None,
+                )
+
+        session[ACTIVE_CONVERSATION_KEY] = conversation.pk
+        return conversation
+
     if not session.session_key:
         session.save()
 
     conversation, _ = Conversation.objects.get_or_create(
-        session_key=session.session_key
+        session_key=session.session_key,
+        user__isnull=True,
     )
     return conversation
 

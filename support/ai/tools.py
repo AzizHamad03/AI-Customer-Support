@@ -105,17 +105,26 @@ def execute_tool(name, arguments, *, request=None):
             "Review and confirm the current ticket draft."
         )
 
-    owns_conversation = (
-        request.session.session_key
-        and Conversation.objects.filter(
-            pk=draft.get("conversation_id"),
-            session_key=request.session.session_key,
-        ).exists()
+    conversations = Conversation.objects.filter(
+        pk=draft.get("conversation_id")
     )
+
+    if request.user.is_authenticated:
+        owns_conversation = conversations.filter(
+            user=request.user
+        ).exists()
+    else:
+        owns_conversation = bool(
+            request.session.session_key
+            and conversations.filter(
+                user__isnull=True,
+                session_key=request.session.session_key,
+            ).exists()
+        )
 
     if not owns_conversation:
         raise ToolPermissionError(
-            "The draft does not belong to this browser session."
+            "The draft does not belong to you."
         )
 
     if not isinstance(draft.get("fields"), dict):

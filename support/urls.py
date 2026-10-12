@@ -7,7 +7,8 @@ from support.views.documents import (
     document_process,
     document_upload,
     document_index,
-    document_set_active
+    document_set_active,
+    document_delete,
 )
 from support.views.health import health
 from support.views.pages import home, staff_dashboard
@@ -26,6 +27,17 @@ from support.views.staff_tickets import (
 )
 
 from support.views.documents import document_replace
+
+from support.views.accounts import (
+    CustomerLoginView,
+    CustomerLogoutView,
+    signup,
+)
+from support.views.conversations import (
+    conversation_list,
+    conversation_new,
+    conversation_open,
+)
 
 app_name = "support"
 
@@ -105,5 +117,40 @@ urlpatterns = [
         "staff/documents/<int:pk>/replace/",
         document_replace,
         name="document_replace",
+    ),
+    path(
+        "staff/documents/<int:pk>/delete/",
+        document_delete,
+        name="document_delete",
+    ),
+    path(
+        "accounts/signup/",
+        signup,
+        name="signup",
+    ),
+    path(
+        "accounts/login/",
+        CustomerLoginView.as_view(),
+        name="login",
+    ),
+    path(
+        "accounts/logout/",
+        CustomerLogoutView.as_view(),
+        name="logout",
+    ),
+    path(
+        "conversations/",
+        conversation_list,
+        name="conversation_list",
+    ),
+    path(
+        "conversations/new/",
+        conversation_new,
+        name="conversation_new",
+    ),
+    path(
+        "conversations/<int:pk>/open/",
+        conversation_open,
+        name="conversation_open",
     ),
 ]

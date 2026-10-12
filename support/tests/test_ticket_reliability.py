@@ -15,6 +15,7 @@ from django.urls import reverse
 from support.ai.tools import DRAFT_KEY, execute_tool
 from support.models import Message, SupportTicket
 
+from django.contrib.auth.models import AnonymousUser
 
 TICKET_FIELDS = {
     "contact_email": "customer@example.com",
@@ -117,6 +118,7 @@ class ConcurrentTicketConfirmationTests(TransactionTestCase):
                 request.session = SessionStore(
                     session_key=session_key
                 )
+                request.user = AnonymousUser()
 
                 # Load the same saved draft in both connections.
                 request.session[DRAFT_KEY]

@@ -17,6 +17,25 @@
        href="{% url 'support:ticket_request' %}">
         Request human support
     </a>
+
+    {% if user.is_authenticated %}
+        <a class="button secondary"
+           href="{% url 'support:conversation_list' %}">
+            My conversations
+        </a>
+
+        <form method="post"
+              action="{% url 'support:conversation_new' %}">
+            {% csrf_token %}
+            <button class="button secondary" type="submit">
+                New conversation
+            </button>
+        </form>
+    {% else %}
+        <a href="{% url 'support:login' %}">
+            Log in to save conversations to your account
+        </a>
+    {% endif %}
 </div>
 
 <section class="panel">

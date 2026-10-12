@@ -8,6 +8,8 @@ const statusText = document.getElementById("chat-status");
 
 let historyLoaded = false;
 
+let activeConversationId = null;
+
 const apiUrl = form.dataset.apiUrl;
 const csrfToken = form.querySelector(
     '[name="csrfmiddlewaretoken"]'
@@ -87,9 +89,14 @@ async function loadHistory() {
 
         const data = await readResponse(response);
 
-        if (!Array.isArray(data.messages)) {
+        if (
+            !Array.isArray(data.messages) ||
+            !Number.isInteger(data.conversation_id)
+        ) {
             throw new Error("Could not load your conversation.");
         }
+
+        activeConversationId = data.conversation_id;
 
         messageList.replaceChildren();
         emptyNotice.hidden = data.messages.length > 0;
@@ -134,7 +141,10 @@ form.addEventListener("submit", async (event) => {
                 "Content-Type": "application/json",
                 "X-CSRFToken": csrfToken,
             },
-            body: JSON.stringify({ content }),
+            body: JSON.stringify({
+                content,
+                conversation_id: activeConversationId,
+            }),
         });
 
         const data = await readResponse(response);

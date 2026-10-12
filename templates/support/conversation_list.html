@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}My conversations{% endblock %}
+
+{% block content %}
+<p class="eyebrow">Customer support</p>
+<h1>My conversations</h1>
+
+<p class="intro">
+    Open a saved conversation or start a new one.
+    Your previous messages and sources remain available.
+</p>
+
+<div class="actions">
+    <form method="post"
+          action="{% url 'support:conversation_new' %}">
+        {% csrf_token %}
+        <button class="button" type="submit">
+            New conversation
+        </button>
+    </form>
+
+    <a class="button secondary" href="{% url 'support:chat' %}">
+        Return to chat
+    </a>
+</div>
+
+{% for conversation in page_obj %}
+    <section class="panel">
+        <h2>
+            {{ conversation.first_question|default:"New conversation"|truncatechars:90 }}
+        </h2>
+
+        <p>
+            Conversation #{{ conversation.pk }}
+            · Last activity:
+            {{ conversation.updated_at|date:"d M Y, H:i" }}
+        </p>
+
+        {% if conversation.pk == active_conversation_id %}
+            <p><strong>Currently selected</strong></p>
+        {% endif %}
+
+        <form method="post"
+              action="{% url 'support:conversation_open' conversation.pk %}">
+            {% csrf_token %}
+            <button class="button secondary" type="submit">
+                Open conversation
+            </button>
+        </form>
+    </section>
+{% empty %}
+    <section class="panel">
+        <p>No saved conversations yet. Start your first conversation above.</p>
+    </section>
+{% endfor %}
+
+{% if page_obj.paginator.num_pages > 1 %}
+    <div class="actions">
+        {% if page_obj.has_previous %}
+            <a class="button secondary"
+               href="?page={{ page_obj.previous_page_number }}">
+                Previous
+            </a>
+        {% endif %}
+
+        <span>
+            Page {{ page_obj.number }}
+            of {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+            <a class="button secondary"
+               href="?page={{ page_obj.next_page_number }}">
+                Next
+            </a>
+        {% endif %}
+    </div>
+{% endif %}
+{% endblock %}

@@ -18,6 +18,7 @@ from support.ai.tools import (
 )
 from support.models import Message, SupportTicket
 
+from django.contrib.auth.models import AnonymousUser
 
 def tool_call(name, arguments, identifier="call-1"):
     return AIMessage(
@@ -218,6 +219,7 @@ class TicketToolTests(TestCase):
             data,
         )
         request.session = session
+        request.user = AnonymousUser()
         return request
 
     def test_ticket_requires_request_and_verified_confirmation(self):

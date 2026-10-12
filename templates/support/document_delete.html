@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Delete document{% endblock %}
+
+{% block content %}
+<p class="eyebrow">Knowledge base</p>
+<h1>Delete document</h1>
+
+{% for message in messages %}
+    <p role="status">{{ message }}</p>
+{% endfor %}
+
+<section class="panel">
+    <h2>{{ document.title }}</h2>
+
+    <p>
+        Version {{ document.version }}
+        · {{ document.get_category_display }}
+        · {{ document.get_status_display }}
+    </p>
+
+    {% if replacement_versions %}
+        <p>
+            This document cannot be deleted because other versions
+            reference it. Delete those versions first, or use
+            Deactivate document to exclude it from chat.
+        </p>
+
+        <ul>
+            {% for replacement in replacement_versions %}
+                <li>
+                    <a href="{% url 'support:document_detail' replacement.pk %}">
+                        {{ replacement.title }}
+                        · Version {{ replacement.version }}
+                        · {{ replacement.get_status_display }}
+                    </a>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>
+            This permanently deletes the uploaded file, extracted text,
+            chunks, and embeddings. The document will no longer be
+            available for future answers.
+        </p>
+
+        <p>
+            Previous conversations and their saved citation text
+            will remain available.
+        </p>
+
+        {% if document.replaces_id %}
+            <p>
+                Deleting this replacement will not automatically
+                reactivate its original document.
+            </p>
+        {% endif %}
+
+        <form method="post"
+              action="{% url 'support:document_delete' document.pk %}">
+            {% csrf_token %}
+
+            <p>
+                <label>
+                    <input type="checkbox"
+                           name="confirm"
+                           value="yes"
+                           required>
+                    I understand and want to permanently delete this document.
+                </label>
+            </p>
+
+            <button class="button" type="submit">
+                Delete permanently
+            </button>
+        </form>
+    {% endif %}
+
+    <p>
+        <a class="button secondary"
+           href="{% url 'support:document_detail' document.pk %}">
+            Cancel and return
+        </a>
+    </p>
+</section>
+{% endblock %}

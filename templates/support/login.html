@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Log in{% endblock %}
+
+{% block content %}
+<h1>Log in</h1>
+
+<p>
+    Access your saved conversations and support tickets.
+</p>
+
+<section class="panel">
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+
+        {% if next %}
+            <input type="hidden" name="next" value="{{ next }}">
+        {% endif %}
+
+        <button class="button" type="submit">Log in</button>
+    </form>
+
+    <p>
+        No account yet?
+        <a href="{% url 'support:signup' %}">Create an account</a>
+    </p>
+
+    <p>
+        <a href="{% url 'support:chat' %}">Continue to chat</a>
+    </p>
+</section>
+{% endblock %}

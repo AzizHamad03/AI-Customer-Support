@@ -156,6 +156,20 @@
     </section>
 {% endif %}
 
+<section class="panel">
+    <h2>Delete document</h2>
+
+    <p>
+        Permanently remove this document and its search data.
+        Previously saved messages and citation text will remain available.
+    </p>
+
+    <a class="button secondary"
+       href="{% url 'support:document_delete' document.pk %}">
+        Delete document
+    </a>
+</section>
+
 {% if document.extracted_pages %}
     <h2>Extracted text</h2>
 

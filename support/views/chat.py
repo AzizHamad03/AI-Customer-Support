@@ -41,12 +41,32 @@ def chat_api(request):
         serializer.is_valid(raise_exception=True)
 
     try:
-        conversation = get_conversation(request.session)
+        conversation = get_conversation(request.session, request.user)
 
         if request.method == "GET":
             return Response({
+                "conversation_id": conversation.pk,
                 "messages": conversation_history(conversation),
             })
+
+        expected_id = request.data.get("conversation_id")
+
+        if (
+            expected_id is not None
+            and (
+                type(expected_id) is not int
+                or expected_id != conversation.pk
+            )
+        ):
+            return Response(
+                {
+                    "error": (
+                        "The selected conversation changed. "
+                        "Review the reloaded conversation before sending again."
+                    )
+                },
+                status=409,
+            )
 
         messages = send_message(
             conversation.pk,
@@ -85,4 +105,7 @@ def chat_api(request):
             status=503,
         )
 
-    return Response({"messages": messages})
+    return Response({
+        "conversation_id": conversation.pk,
+        "messages": messages,
+    })

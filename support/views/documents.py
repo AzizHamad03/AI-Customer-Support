@@ -17,11 +17,20 @@ from support.services.documents import (
     create_replacement_document,
     list_documents,
     set_document_active,
+    delete_document,
 )
 from support.services.indexing import index_document
 from support.services.document_pipeline import (
     process_and_index_document,
 )
+
+import logging
+
+from django.db import DatabaseError
+from django.db.models.deletion import ProtectedError
+from django.views.decorators.http import require_http_methods
+
+logger = logging.getLogger(__name__)
 
 @staff_member_required
 def document_list(request):
@@ -252,3 +261,61 @@ def document_set_active(request, pk):
         )
 
     return redirect("support:document_detail", pk=pk)
+
+@staff_member_required
+@require_http_methods(["GET", "POST"])
+def document_delete(request, pk):
+    document = get_object_or_404(KnowledgeDocument, pk=pk)
+
+    context = {
+        "document": document,
+        "replacement_versions": document.replacement_versions.order_by(
+            "version", "pk"
+        ),
+    }
+
+    if request.method == "POST":
+        if request.POST.get("confirm") != "yes":
+            messages.error(request, "Confirm deletion before continuing.")
+            return redirect("support:document_delete", pk=pk)
+
+        try:
+            title = delete_document(document.pk)
+        except KnowledgeDocument.DoesNotExist:
+            messages.info(request, "This document has already been deleted.")
+            return redirect("support:document_list")
+        except ProtectedError:
+            messages.error(
+                request,
+                "This document has replacement versions. "
+                "Delete those versions first, or deactivate it.",
+            )
+            return redirect("support:document_delete", pk=pk)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect("support:document_delete", pk=pk)
+        except DatabaseError:
+            logger.exception("Document deletion failed")
+            messages.error(
+                request,
+                "The document could not be deleted. Please try again.",
+            )
+            return render(
+                request,
+                "support/document_delete.html",
+                context,
+                status=503,
+            )
+
+        messages.success(
+            request,
+            f'Document "{title}" deleted. '
+            "Previous messages and citation text have been preserved.",
+        )
+        return redirect("support:document_list")
+
+    return render(
+        request,
+        "support/document_delete.html",
+        context,
+    )

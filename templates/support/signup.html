@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Create an account{% endblock %}
+
+{% block content %}
+<h1>Create an account</h1>
+
+<p>
+    Save your conversations and access your support tickets
+    when you return.
+</p>
+
+<section class="panel">
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+
+        <button class="button" type="submit">
+            Create account
+        </button>
+    </form>
+
+    <p>
+        Already registered?
+        <a href="{% url 'support:login' %}">Log in</a>
+    </p>
+</section>
+{% endblock %}

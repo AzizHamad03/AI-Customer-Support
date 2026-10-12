@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def ticket_request(request):
-    conversation = get_conversation(request.session)
+    conversation = get_conversation(request.session, request.user)
     previous_draft = request.session.get(DRAFT_KEY, {})
 
     if request.method == "POST":
@@ -48,7 +48,7 @@ def ticket_request(request):
 
 
 def ticket_confirm(request):
-    conversation = get_conversation(request.session)
+    conversation = get_conversation(request.session, request.user)
     draft = request.session.get(DRAFT_KEY)
 
     if not draft or draft.get("conversation_id") != conversation.pk:
@@ -123,13 +123,20 @@ def ticket_confirm(request):
 
 
 def ticket_detail(request, pk):
-    conversation = get_conversation(request.session)
+    if request.user.is_authenticated:
+        tickets = SupportTicket.objects.filter(
+            conversation__user=request.user
+        )
+    else:
+        conversation = get_conversation(
+            request.session,
+            request.user,
+        )
+        tickets = SupportTicket.objects.filter(
+            conversation=conversation
+        )
 
-    ticket = get_object_or_404(
-        SupportTicket,
-        pk=pk,
-        conversation=conversation,
-    )
+    ticket = get_object_or_404(tickets, pk=pk)
 
     return render(
         request,
@@ -139,11 +146,18 @@ def ticket_detail(request, pk):
 
 @require_GET
 def customer_ticket_list(request):
-    conversation = get_conversation(request.session)
-
-    tickets = SupportTicket.objects.filter(
-        conversation=conversation
-    )
+    if request.user.is_authenticated:
+        tickets = SupportTicket.objects.filter(
+            conversation__user=request.user
+        )
+    else:
+        conversation = get_conversation(
+            request.session,
+            request.user,
+        )
+        tickets = SupportTicket.objects.filter(
+            conversation=conversation
+        )
 
     return render(
         request,

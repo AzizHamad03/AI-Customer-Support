@@ -1,9 +1,10 @@
 # AI Customer Support Assistant
 
 A Django application for a fictional online store. Customers ask questions
-about store policies and products through a session-based chat. The assistant
-retrieves relevant document passages and answers with supporting sources.
-Customers can submit confirmed support tickets for issues requiring staff review.
+about store policies and products through guest or account-based chat. The
+assistant retrieves relevant document passages and answers with supporting
+sources. Registered customers can manage saved conversations across browsers
+and devices. Customers can submit confirmed support tickets for staff review.
 
 ## Problem statement
 
@@ -28,22 +29,55 @@ update ticket statuses through an authenticated dashboard.
 - English customer chat with bounded follow-up context.
 - Persistent messages and citation evidence.
 - Ticket validation, review, explicit confirmation, and duplicate prevention.
-- Session-scoped customer chat history and ticket access.
+- Guest chat and tickets restricted to the current browser session.
+- Customer registration, login, and POST-only logout using Django authentication.
+- Account-owned conversations and tickets accessible after logging in again.
+- Guest-history transfer on registration/login, preserving messages, citations,
+  and existing tickets.
+- Paginated My conversations list, conversation selection, and New conversation.
+- Ownership checks for conversation selection and customer ticket access.
+- Browser chat checks the selected conversation ID before sending a message.
 - Staff ticket search, status filters, conversation review, and status updates.
 - Document activation/deactivation and versioned replacement.
 - The old document remains available until replacement indexing succeeds.
+- Staff-only document deletion with explicit confirmation, removal of search
+  data, and preservation of historical citation text.
 
 A single assistant selects knowledge-search and support-ticket tools through
-a bounded tool-calling loop. Each chat request allows up to three model turns
-and two tool calls.
+a bounded tool-calling loop. Tool selection allows up to three model turns
+and two tool calls per chat request. Follow-up rewriting and grounded answer
+generation are separate model calls outside that loop.
 
 Ticket creation requires the customer to complete the support form, review
 the saved draft, and explicitly confirm it. The backend verifies the draft
-identifier, browser session, and fields before executing the ticket tool.
+identifier, customer account or guest session ownership, and fields before
+executing the ticket tool.
 Chat messages cannot authorize ticket creation.
 
 Live order tracking, payments, refund execution, OCR, notifications, and live
 human chat handoff are outside the current scope.
+
+## Users and access
+
+| User | Available features |
+| --- | --- |
+| Guest | Chat and confirmed support tickets within the current browser session |
+| Registered customer | Account-owned chat history, My conversations, New conversation, and their tickets |
+| Staff | Customer features plus document management and staff ticket workflows |
+
+Registration creates an ordinary customer account. It does not grant staff or
+superuser permissions. Staff access requires an active Django user with
+`is_staff=True`; the superuser created during setup has this access.
+
+Guest access depends on session cookies. Clearing cookies or session expiry
+can remove access to guest history and tickets. Registering or logging in
+through the application's account pages transfers the current guest
+conversation and its existing tickets to that account. Existing account
+conversations remain separate and appear in My conversations.
+
+Login and conversation switching clear unfinished support-ticket drafts.
+Saved tickets are retained. Logging out ends the browser's authenticated
+session without deleting account history.
 
 ## Technologies
 
@@ -214,7 +248,19 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-Open http://127.0.0.1:8000/ and sign in through Staff workspace.
+Open http://127.0.0.1:8000/.
+
+- Customers can use guest chat or choose Create account / Log in.
+- Staff can use Log in with their existing staff credentials; the default
+  destination after login is the staff workspace.
+- `/admin/` remains available for Django administration. Unauthenticated
+  staff-workspace requests currently redirect to the admin login page.
+- For guest-history transfer, use `/accounts/login/` or `/accounts/signup/`;
+  that transfer is implemented in the application account views.
+
+When updating an existing installation, apply `python manage.py migrate`.
+The account-ownership migration preserves existing conversations as guest
+conversations until they are transferred through application registration/login.
 
 AI indexing and live answers require an API key with model access and available
 API credit. A ChatGPT subscription is separate from API billing.
@@ -233,6 +279,55 @@ API credit. A ChatGPT subscription is separate from API billing.
 See sample_data/README.md for titles, categories, questions, and replacement
 testing. Sample documents are not automatically loaded by migrations.
 
+## Customer accounts and saved conversations
+
+1. Open Customer chat and optionally ask a question as a guest.
+2. Choose Create account and enter a username and password. Django validates
+   the password; email verification and password-reset flows are not implemented.
+3. The current guest conversation, its citations, and existing tickets transfer
+   to the account. A new account does not receive staff permissions.
+4. Use New conversation to open an empty chat while retaining earlier chats.
+5. Open My conversations to select an earlier conversation. List labels use the
+   first customer message; empty chats are labeled New conversation.
+6. Log out, then log in again or use another browser to access account history.
+7. My tickets lists tickets across all conversations owned by the account.
+
+A browser session stores its selected conversation. If no owned selection is
+available, chat opens the account's most recently updated conversation, or
+creates its first conversation. Separate browser sessions can select different
+conversations. Tabs sharing a session share the selection; the browser chat
+includes the loaded conversation ID with each question to detect an outdated
+selection and reload without automatically resending.
+
+## Document availability, replacement, and deletion
+
+Use Deactivate document to exclude a Ready document from future retrieval
+while retaining its file and indexing data. Activate document restores
+availability when the document is eligible.
+
+To update a Ready, active document, choose Upload replacement and process the
+new version. The original remains available until replacement indexing
+succeeds. Successful indexing activates the replacement and deactivates the
+original together. A replaced original cannot be reactivated while a Ready
+replacement references it.
+
+To remove a document:
+
+1. Open its detail page in the staff workspace.
+2. Choose Delete document.
+3. Review the title/version, tick the confirmation checkbox, and submit.
+
+Deletion removes the database document, extracted text, chunks, and embeddings.
+Existing conversations and citation snapshots remain; their chunk links become
+null. Uploaded-file cleanup runs after the database transaction commits. If
+file cleanup fails, the failure is logged and the document remains excluded
+from retrieval.
+
+A document referenced by any replacement version cannot be deleted. Delete
+referencing versions first, or deactivate the document. Deleting a replacement
+does not automatically reactivate its original. No conversation-deletion or
+conversation-renaming interface is currently provided.
+
 ## Support-ticket demonstration
 
 1. Report a damaged delivery in chat.
@@ -250,20 +345,50 @@ Sending a chat message alone does not create a ticket.
 | Endpoint | Purpose |
 | --- | --- |
 | GET /api/health/ | Database connectivity; returns 503 if unavailable |
-| GET /api/chat/ | Current session's messages and citations |
+| GET /api/chat/ | Selected owned or guest conversation ID, messages, and citations |
 | POST /api/chat/ | Send a question as JSON |
 
-Example POST body:
+First call `GET /api/chat/` to obtain the selected `conversation_id`.
+Include that ID in a question request, for example:
 
 ```json
-{"content": "How much does shipping cost?"}
+{
+  "content": "How much does shipping cost?",
+  "conversation_id": 1
+}
 ```
+
+Replace `1` with the ID returned by GET. The ID is a selection check, not a way
+to open an arbitrary conversation. The server verifies ownership when selecting
+history. `conversation_id` is optional for API compatibility; the browser always
+supplies it. A supplied ID must be an integer matching the selected conversation.
+
+Chat responses include `conversation_id` and `messages`. A selection mismatch,
+concurrent conversation change, or evidence change during a cited answer returns
+409. AI/database availability failures return 503.
 
 Chat requests use the browser session cookie. POST requests require a CSRF
 token in the X-CSRFToken header, including for anonymous visitors.
 
-Staff document and ticket operations currently use authenticated Django
-pages/forms rather than separate REST APIs.
+Account, conversation-selection, and staff operations use Django pages/forms
+rather than separate REST APIs. Relevant routes include:
+
+| Route | Method | Purpose |
+| --- | --- | --- |
+| /accounts/signup/ | GET, POST | Customer registration |
+| /accounts/login/ | GET, POST | Customer/staff login |
+| /accounts/logout/ | POST | Logout |
+| /conversations/ | GET | Registered customer's conversation list |
+| /conversations/new/ | POST | Create and select an account-owned conversation |
+| /conversations/<id>/open/ | POST | Select an owned conversation |
+| /support/request/ | GET, POST | Prepare a support-ticket draft |
+| /support/confirm/ | GET, POST | Review and confirm ticket creation |
+| /support/tickets/ | GET | Customer's accessible tickets |
+| /staff/ | GET | Staff dashboard |
+| /staff/documents/<id>/delete/ | GET, POST | Staff deletion review and confirmation |
+
+State-changing forms include CSRF tokens. Conversation routes require login;
+staff routes require staff membership.
 
 ## Project structure
 
@@ -273,8 +398,8 @@ pages/forms rather than separate REST APIs.
 | support/models/ | Separate domain models |
 | support/views/ | Pages and API request handling |
 | support/api/ | Serializer and session/CSRF authentication |
-| support/services/ | Document, retrieval, chat, and ticket rules |
-| support/ai/ | Embeddings, prompts, rewriting, structured answers |
+| support/services/ | Accounts, conversations, documents, retrieval, chat, and ticket rules |
+| support/ai/ | Embeddings, bounded agent, controlled tools, rewriting, structured answers |
 | support/migrations/ | Database schema and vector migration |
 | support/tests/ | Functional and permission checks |
 | templates/ | Customer and staff pages |
@@ -285,8 +410,8 @@ pages/forms rather than separate REST APIs.
 Data persists in PostgreSQL after restarting the application. Preserve the
 database, uploaded files, and signing key.
 
-Anonymous access depends on browser session cookies. Clearing cookies or
-session expiry can remove that visitor's access to history and tickets.
+Registered history belongs to the account and can be accessed after logging
+in again. Guest history remains dependent on the original browser session.
 
 ## Automated checks
 
@@ -313,8 +438,16 @@ python manage.py test --keepdb
 The --keepdb option retains the prepared test database and vector extension.
 Run the full suite on PostgreSQL, not SQLite.
 
-Existing tests mock AI requests. They do not require an API key or measure
-live model quality, latency, or memory.
+Tests cover document processing/replacement/deletion, citation preservation,
+RAG failures, controlled tools, ticket validation and duplicate prevention,
+concurrent ticket confirmation, registration/login, guest-history transfer,
+account ownership, staff permissions, conversation selection, and stale-tab
+requests.
+
+AI requests are mocked. Tests do not require an API key and do not measure
+live model quality, latency, or memory. Invalid-PDF and simulated AI-failure
+logs can appear during successful failure-path tests; use the final test result
+and traceback output to identify actual failures.
 
 ## Troubleshooting
 
@@ -328,6 +461,11 @@ live model quality, latency, or memory.
 | No searchable documents | Documents are indexed, Ready, and Active |
 | API error | Key, billing, model access, and network; restart after editing .env |
 | Empty/scanned file fails | Use non-empty UTF-8 TXT or text-based PDF |
+| Conversation changed / HTTP 409 | Review reloaded history before resending; another tab or request may have changed it |
+| Login-related CSRF error in an old tab | Refresh the full page after logging in or out |
+| Customer cannot access staff workspace | Expected; use an account with staff membership |
+| Cannot delete a document | Check for referencing replacement versions |
+| Earlier chat not currently visible | Open My conversations and select it; guests need their original session |
 
 ## Evaluation and remaining work
 
@@ -340,5 +478,16 @@ separate development examples.
 The report will cover retrieval and answer quality, groundedness, ticket
 success, latency, local backend memory, and a no-RAG comparison.
 
-Remaining work includes controlled agent tools, broader failure-path tests,
-the evaluation report, and the final presentation.
+The fixed evaluation dataset, evaluation runner, measurement/scoring scripts,
+and recorded evaluation results are not included in this version. Sample
+questions are development/demo examples. Remaining deliverables include the
+performance evaluation document and final presentation.
+
+Possible later improvements include moving embedding API calls outside document
+indexing transactions, adding an overall chat-request time budget, and using
+measured evaluation results to tune retrieval. Current document indexing runs
+synchronously, and long conversation histories are loaded in full.
+
+The current scope is one demonstration store with English text chat. The
+application does not yet include password recovery, email verification, or
+production deployment configuration.

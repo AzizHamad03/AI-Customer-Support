@@ -1,0 +1,35 @@
+Demo Store Product Catalog
+Catalog version: 1
+Fictional information for a course demonstration.
+
+Prices are catalog prices in Saudi riyals, excluding delivery.
+This document does not provide live stock availability.
+
+Lumi Desk Lamp
+Product code: DEMO-LAMP-01
+Price: SAR 149
+LED lamp with an adjustable arm and USB-C power input.
+One fixed brightness level; dimming is not supported.
+No battery.
+A USB-C cable is included. A wall power adapter is not included.
+
+Canvas Tote Bag
+Product code: DEMO-TOTE-02
+Price: SAR 59
+Cotton canvas bag, 38 cm wide and 42 cm high.
+Catalog colors: natural beige and black.
+Spot cleaning is recommended.
+This item is not personalized.
+
+Personalized Notebook
+Product code: DEMO-NOTE-03
+Price: SAR 89
+A5 notebook with 120 lined pages.
+The cover supports a personalized name of up to 20 characters.
+Personalized-item return restrictions apply, with defective or damaged
+items requiring staff review.
+
+Unspecified information
+Warranty periods, live inventory, promotions, and personalization
+production times are not specified.
+The assistant should offer human support instead of inventing them.

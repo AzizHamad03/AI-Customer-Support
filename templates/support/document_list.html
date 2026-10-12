@@ -30,9 +30,15 @@
             </a>
         </h2>
         <p>
-            {{ document.get_category_display }}
+            Version {{ document.version }}
+            · {{ document.get_category_display }}
             · {{ document.get_status_display }}
-            · {% if document.is_active %}Active{% else %}Inactive{% endif %}
+            ·
+            {% if document.status == "ready" and document.is_active %}
+                Available for chat
+            {% else %}
+                Not available for chat
+            {% endif %}
         </p>
         <p>
             Uploaded by {{ document.uploaded_by.username }}

@@ -71,14 +71,24 @@ class TicketTests(TestCase):
 
         self.client.post(
             reverse("support:ticket_confirm"),
-            {"confirm": "yes"},
+            {
+                "confirm": "yes",
+                "request_id": self.client.session[
+                    "support_ticket_draft"
+                ]["request_id"],
+            },
         )
         ticket = SupportTicket.objects.get()
 
         # Repeating the confirmation returns the existing ticket.
         self.client.post(
             reverse("support:ticket_confirm"),
-            {"confirm": "yes"},
+            {
+                "confirm": "yes",
+                "request_id": self.client.session[
+                    "support_ticket_draft"
+                ]["request_id"],
+            },
         )
         self.assertEqual(SupportTicket.objects.count(), 1)
 

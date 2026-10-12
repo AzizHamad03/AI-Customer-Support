@@ -3,12 +3,22 @@ import re
 from django.db import transaction
 
 from support.ai.answers import (
+    ChatError,
     generate_answer,
     make_standalone_question,
 )
-from support.models import Conversation, Message, MessageCitation
-from support.services.retrieval import search_knowledge_base
+from support.models import (
+    Conversation,
+    DocumentChunk,
+    Message,
+    MessageCitation,
+)
+from support.ai.agent import (
+    search_with_agent as search_knowledge_base,
+)
 
+class ConversationChanged(ChatError):
+    pass
 
 FALLBACK = (
     "I don't have enough consistent information in the store documents "
@@ -36,6 +46,7 @@ def serialize_message(message):
             {
                 "source_key": citation.source_key,
                 "title": citation.document_title,
+                "document_version": citation.document_version,
                 "page_number": citation.page_number,
                 "text": citation.source_text,
                 "is_txt": citation.is_txt,
@@ -77,16 +88,15 @@ def policy_only_escalation_text(text):
     return " ".join(kept)
 
 
-@transaction.atomic
 def send_message(conversation_id, question):
-    # Serialize simultaneous submissions to the same conversation.
-    conversation = Conversation.objects.select_for_update().get(
+    conversation = Conversation.objects.get(
         pk=conversation_id
     )
 
     recent = list(
         conversation.messages.order_by("-id")[:6]
     )
+    expected_last_id = recent[0].pk if recent else None
     history = [
         {
             "role": message.role,
@@ -145,34 +155,72 @@ def send_message(conversation_id, question):
                 "and confirm to create a ticket."
             )
 
-    customer_message = Message.objects.create(
-        conversation=conversation,
-        role=Message.Role.USER,
-        content=question,
-    )
+    # AI calls have finished. Lock only while checking and saving.
+    with transaction.atomic():
+        conversation = Conversation.objects.select_for_update().get(
+            pk=conversation_id
+        )
 
-    assistant_message = Message.objects.create(
-        conversation=conversation,
-        role=Message.Role.ASSISTANT,
-        content=answer_text,
-    )
+        current_last_id = (
+            conversation.messages.order_by("-id")
+            .values_list("pk", flat=True)
+            .first()
+        )
 
-    MessageCitation.objects.bulk_create(
-        [
-            MessageCitation(
-                message=assistant_message,
-                chunk_id=source_map[key]["chunk_id"],
-                source_key=key,
-                document_title=source_map[key]["title"],
-                page_number=source_map[key]["page_number"],
-                source_text=source_map[key]["text"],
-                is_txt=source_map[key]["is_txt"],
+        if current_last_id != expected_last_id:
+            raise ConversationChanged(
+                "Your conversation changed while this answer "
+                "was being prepared. Review the latest messages "
+                "and send your question again."
             )
-            for key in selected_keys
-        ]
-    )
 
-    conversation.save(update_fields=["updated_at"])
+        live_chunk_ids = set(
+            DocumentChunk.objects.select_for_update()
+            .filter(
+                pk__in=[
+                    source_map[key]["chunk_id"]
+                    for key in selected_keys
+                ]
+            )
+            .order_by("pk")
+            .values_list("pk", flat=True)
+        )
+
+        customer_message = Message.objects.create(
+            conversation=conversation,
+            role=Message.Role.USER,
+            content=question,
+        )
+
+        assistant_message = Message.objects.create(
+            conversation=conversation,
+            role=Message.Role.ASSISTANT,
+            content=answer_text,
+        )
+
+        MessageCitation.objects.bulk_create(
+            [
+                MessageCitation(
+                    message=assistant_message,
+                    chunk_id=(
+                        source_map[key]["chunk_id"]
+                        if source_map[key]["chunk_id"] in live_chunk_ids
+                        else None
+                    ),
+                    source_key=key,
+                    document_title=source_map[key]["title"],
+                    document_version=source_map[key].get(
+                        "document_version"
+                    ),
+                    page_number=source_map[key]["page_number"],
+                    source_text=source_map[key]["text"],
+                    is_txt=source_map[key]["is_txt"],
+                )
+                for key in selected_keys
+            ]
+        )
+
+        conversation.save(update_fields=["updated_at"])
 
     return [
         serialize_message(customer_message),

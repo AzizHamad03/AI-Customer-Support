@@ -17,6 +17,10 @@ class MessageCitation(models.Model):
 
     # Snapshots preserve the evidence even if the source later changes.
     document_title = models.CharField(max_length=200)
+    document_version = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
     page_number = models.PositiveIntegerField()
     source_text = models.TextField()
     is_txt = models.BooleanField(default=False)

@@ -57,6 +57,12 @@
                 <summary>
                     {{ citation.document_title }}
                     ·
+                    {% if citation.document_version %}
+                        v{{ citation.document_version }}
+                    {% else %}
+                        Version not recorded
+                    {% endif %}
+                    ·
                     {% if citation.is_txt %}
                         Text document
                     {% else %}

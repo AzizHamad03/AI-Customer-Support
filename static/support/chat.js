@@ -1,9 +1,12 @@
 const form = document.getElementById("chat-form");
 const questionInput = document.getElementById("chat-question");
 const sendButton = document.getElementById("chat-send");
+const reloadButton = document.getElementById("chat-reload");
 const messageList = document.getElementById("chat-messages");
 const emptyNotice = document.getElementById("chat-empty");
 const statusText = document.getElementById("chat-status");
+
+let historyLoaded = false;
 
 const apiUrl = form.dataset.apiUrl;
 const csrfToken = form.querySelector(
@@ -34,7 +37,12 @@ function addMessage(message) {
             ? "Text document"
             : `Page ${citation.page_number}`;
 
-        summary.textContent = `${citation.title} · ${location}`;
+        const version = citation.document_version
+            ? `v${citation.document_version}`
+            : "Version not recorded";
+
+        summary.textContent =
+            `${citation.title} · ${version} · ${location}`;
 
         const passage = document.createElement("pre");
         passage.className = "document-text";
@@ -47,8 +55,26 @@ function addMessage(message) {
     messageList.append(article);
 }
 
+function scrollToLatest() {
+    messageList.scrollTop = messageList.scrollHeight;
+}
+
+async function readResponse(response) {
+    try {
+        return await response.json();
+    } catch {
+        throw new Error(
+            "The request could not be completed. " +
+            "Please reload the conversation."
+        );
+    }
+}
+
 async function loadHistory() {
+    historyLoaded = false;
     sendButton.disabled = true;
+    reloadButton.disabled = true;
+    statusText.textContent = "Loading conversation…";
 
     try {
         const response = await fetch(apiUrl, {
@@ -59,18 +85,35 @@ async function loadHistory() {
             throw new Error("Could not load your conversation.");
         }
 
-        const data = await response.json();
+        const data = await readResponse(response);
+
+        if (!Array.isArray(data.messages)) {
+            throw new Error("Could not load your conversation.");
+        }
+
         messageList.replaceChildren();
+        emptyNotice.hidden = data.messages.length > 0;
 
         for (const message of data.messages) {
             addMessage(message);
         }
+
+        historyLoaded = true;
+        scrollToLatest();
+        statusText.textContent = "";
+
     } catch (error) {
         statusText.textContent = error.message;
+
     } finally {
-        sendButton.disabled = false;
+        sendButton.disabled = !historyLoaded;
+        reloadButton.disabled = false;
     }
+
+    return historyLoaded;
 }
+
+reloadButton.addEventListener("click", loadHistory);
 
 form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -80,6 +123,7 @@ form.addEventListener("submit", async (event) => {
 
     sendButton.disabled = true;
     questionInput.disabled = true;
+    reloadButton.disabled = true;
     statusText.textContent = "Finding an answer…";
 
     try {
@@ -93,7 +137,7 @@ form.addEventListener("submit", async (event) => {
             body: JSON.stringify({ content }),
         });
 
-        const data = await response.json();
+        const data = await readResponse(response);
 
         if (!response.ok) {
             throw new Error(
@@ -104,16 +148,38 @@ form.addEventListener("submit", async (event) => {
             );
         }
 
+        if (!Array.isArray(data.messages)) {
+            throw new Error(
+                "The reply could not be displayed. " +
+                "Please reload the conversation."
+            );
+        }
+
         for (const message of data.messages) {
             addMessage(message);
         }
 
+        scrollToLatest();
         questionInput.value = "";
         statusText.textContent = "";
+
     } catch (error) {
-        statusText.textContent = error.message;
+        const errorMessage = error instanceof TypeError
+            ? "The connection was interrupted."
+            : error.message;
+
+        // Refresh history without automatically resending the question.
+        const refreshed = await loadHistory();
+
+        statusText.textContent = errorMessage + (
+            refreshed
+                ? ""
+                : " Reload the conversation before trying again."
+        );
+
     } finally {
-        sendButton.disabled = false;
+        sendButton.disabled = !historyLoaded;
+        reloadButton.disabled = false;
         questionInput.disabled = false;
         questionInput.focus();
     }

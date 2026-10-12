@@ -1,0 +1,29 @@
+Demo Store Returns Policy
+Policy version: 1
+Fictional information for a course demonstration.
+
+Standard returns
+Customers may request a return of a non-personalized item within
+14 calendar days of receiving it.
+The item must be unused and have its original packaging.
+Staff review return requests before approval.
+
+Personalized items
+Personalized items are normally excluded from change-of-mind returns.
+Defective or damaged personalized items are an exception requiring
+staff review. The assistant cannot promise approval.
+
+Damaged deliveries
+Report damage discovered on delivery within 48 hours of receipt.
+Use Request human support and describe the issue.
+Include an order reference if available.
+
+Refunds and cancellations
+Only staff can approve or process refunds and cancellations.
+An exact refund processing time is not specified.
+The assistant cannot issue refunds, cancel orders, verify payments,
+or confirm that a refund has completed.
+
+Unspecified information
+Return shipping charges and exchange processing times are not specified.
+Request human support for these details.

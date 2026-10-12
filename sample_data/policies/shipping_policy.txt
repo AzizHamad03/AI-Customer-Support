@@ -1,0 +1,29 @@
+Demo Store Shipping Policy
+Policy version: 1
+Fictional information for a course demonstration.
+
+Delivery coverage
+We ship to Riyadh and other cities within Saudi Arabia.
+International shipping is not offered.
+
+Shipping cost
+Standard shipping costs SAR 25 when the merchandise subtotal after
+discounts is below SAR 200.
+Standard shipping is free when that subtotal is SAR 200 or more.
+The shipping fee does not count toward the free-shipping threshold.
+
+Delivery estimates
+Riyadh: 2-4 business days after dispatch.
+Other Saudi cities: 3-7 business days after dispatch.
+These are estimates, not guaranteed delivery dates.
+Business days are Sunday through Thursday, excluding public holidays.
+
+Delivery issues
+Report damaged deliveries within 48 hours of receiving the package.
+Staff must review damaged, delayed, or missing deliveries.
+A report does not automatically approve a refund or replacement.
+
+Tracking
+The demonstration assistant cannot access live courier tracking or
+verify the status of a specific order.
+Customers may include an order reference in a support ticket.

@@ -10,7 +10,7 @@ from support.models import KnowledgeDocument
 from support.services.chunking import prepare_document_chunks
 from support.services.document_processing import (
     DocumentProcessingError,
-    process_document,
+    
 )
 from support.services.documents import (
     create_document,
@@ -19,7 +19,9 @@ from support.services.documents import (
     set_document_active,
 )
 from support.services.indexing import index_document
-
+from support.services.document_pipeline import (
+    process_and_index_document,
+)
 
 @staff_member_required
 def document_list(request):
@@ -44,7 +46,7 @@ def document_upload(request):
             )
             messages.success(
                 request,
-                "Document uploaded. Click Extract text to process it.",
+                "Document uploaded. Click Process document to prepare it for chat.",
             )
             return redirect(
                 "support:document_detail",
@@ -82,8 +84,8 @@ def document_replace(request, pk):
                 messages.success(
                     request,
                     f"Version {replacement.version} uploaded. "
-                    "Extract its text, prepare chunks, and generate "
-                    "embeddings. The original remains available "
+                    "Click Process document to prepare it for chat. "
+                    "The original remains available "
                     "until replacement indexing succeeds.",
                 )
                 return redirect(
@@ -154,16 +156,26 @@ def document_process(request, pk):
     document = get_object_or_404(KnowledgeDocument, pk=pk)
 
     try:
-        process_document(document)
-    except DocumentProcessingError as exc:
-        messages.error(request, str(exc))
-    else:
-        if document.status == KnowledgeDocument.Status.EXTRACTED:
-            messages.success(request, "Text extracted successfully.")
-        else:
-            messages.error(request, document.processing_error)
+        process_and_index_document(document.pk)
 
-    return redirect("support:document_detail", pk=document.pk)
+    except (
+        DocumentProcessingError,
+        EmbeddingError,
+        ValueError,
+    ) as exc:
+        messages.error(request, str(exc))
+
+    else:
+        messages.success(
+            request,
+            "Document processing completed. "
+            "Review its availability below.",
+        )
+
+    return redirect(
+        "support:document_detail",
+        pk=document.pk,
+    )
 
 
 @staff_member_required

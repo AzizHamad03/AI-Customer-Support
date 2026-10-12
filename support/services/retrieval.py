@@ -27,6 +27,7 @@ def search_knowledge_base(question, limit=5):
         {
             "chunk_id": chunk.pk,
             "title": chunk.document.title,
+            "document_version": chunk.document.version,
             "page_number": chunk.page_number,
             "text": chunk.text,
             "distance": float(chunk.distance),

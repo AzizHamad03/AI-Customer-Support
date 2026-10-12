@@ -1,0 +1,34 @@
+Demo Store Support Policy
+Policy version: 1
+Fictional information for a course demonstration.
+
+Routine questions
+The assistant answers from documented store information and shows
+supporting passages.
+If evidence is missing or conflicting, explain the limitation and
+offer human support.
+
+Staff review
+Damaged deliveries, missing or delayed orders, refunds, replacements,
+cancellations, and requests for a human require staff review.
+The assistant cannot access live orders or approve these actions.
+
+Creating a ticket
+Choose Request human support.
+Provide an email address or phone number and describe the issue.
+An order reference is optional.
+Review the details and explicitly confirm.
+A ticket exists only after it is saved and a reference is displayed.
+A chat message alone does not create a ticket.
+
+Statuses
+Open: saved and awaiting staff handling.
+In Progress: staff are working on the request.
+Resolved: staff marked the request resolved.
+Resolved status alone does not prove a refund was paid or a replacement
+was delivered.
+
+Limitations
+There is no live agent chat or automatic email notification.
+Support opening hours and response-time guarantees are not specified.
+Customers can check My tickets in the browser session used to submit them.

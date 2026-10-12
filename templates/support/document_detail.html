@@ -74,8 +74,8 @@
             containing {{ character_count }} characters.
         </p>
         <p>
-            Prepare chunks, then generate embeddings to make this
-            document ready for chat.
+            Click Process document to make this document ready for chat.
+            If indexing failed, the same button retries it.
         </p>
     {% elif document.status == "failed" %}
         <p class="processing-error">{{ document.processing_error }}</p>
@@ -90,33 +90,19 @@
     {% endif %}
 
     <div class="actions">
-        {% if document.status == "pending" or document.status == "failed" %}
+        {% if document.status != "ready" %}
             <form method="post"
+                  data-processing-form
                   action="{% url 'support:document_process' document.pk %}">
                 {% csrf_token %}
-                <button class="button" type="submit">
-                    Extract text
-                </button>
-            </form>
-        {% endif %}
 
-        {% if document.status == "extracted" %}
-            <form method="post"
-                  action="{% url 'support:document_prepare_chunks' document.pk %}">
-                {% csrf_token %}
                 <button class="button" type="submit">
-                    Prepare chunks
+                    Process document
                 </button>
-            </form>
-        {% endif %}
 
-        {% if document.status == "extracted" and chunks %}
-            <form method="post"
-                  action="{% url 'support:document_index' document.pk %}">
-                {% csrf_token %}
-                <button class="button" type="submit">
-                    Generate embeddings
-                </button>
+                <p class="helptext">
+                    Keep this page open while the document is prepared.
+                </p>
             </form>
         {% endif %}
 
@@ -222,4 +208,14 @@
         </section>
     {% endfor %}
 {% endif %}
+
+<script>
+const processingForm = document.querySelector("[data-processing-form]");
+
+processingForm?.addEventListener("submit", () => {
+    const button = processingForm.querySelector("button");
+    button.disabled = true;
+    button.textContent = "Processing…";
+});
+</script>
 {% endblock %}

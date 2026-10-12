@@ -9,12 +9,16 @@ from django.shortcuts import get_object_or_404, redirect, render
 from support.forms import SupportTicketForm
 from support.models import SupportTicket
 from support.services.chat import get_conversation
-from support.services.tickets import create_support_ticket
+from support.ai.tools import (
+    DRAFT_KEY,
+    ToolPermissionError,
+    execute_tool,
+)
 
 from django.views.decorators.http import require_GET
 
 logger = logging.getLogger(__name__)
-DRAFT_KEY = "support_ticket_draft"
+
 
 
 def ticket_request(request):
@@ -65,7 +69,10 @@ def ticket_confirm(request):
         messages.error(request, "Please check your ticket details.")
         return redirect("support:ticket_request")
 
-    context = {"details": form.cleaned_data}
+    context = {
+        "details": form.cleaned_data,
+        "request_id": draft["request_id"],
+    }
 
     if request.method == "POST":
         if request.POST.get("confirm") != "yes":
@@ -76,11 +83,20 @@ def ticket_confirm(request):
             return redirect("support:ticket_confirm")
 
         try:
-            ticket = create_support_ticket(
-                conversation_id=conversation.pk,
-                request_id=draft["request_id"],
-                fields=form.cleaned_data,
+            result = execute_tool(
+                "create_support_ticket",
+                {},
+                request=request,
             )
+
+            ticket = get_object_or_404(
+                SupportTicket,
+                pk=result["ticket_id"],
+                conversation=conversation,
+            )
+        except ToolPermissionError as exc:
+            messages.error(request, str(exc))
+            return redirect("support:ticket_confirm")
         except ValidationError:
             messages.error(request, "Please check your ticket details.")
             return redirect("support:ticket_request")

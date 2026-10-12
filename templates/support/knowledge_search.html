@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Test knowledge search{% endblock %}
+
+{% block content %}
+<p class="eyebrow">Retrieval testing</p>
+<h1>Test knowledge search</h1>
+
+<p class="intro">
+    Find relevant passages from active, indexed documents.
+    This page retrieves evidence; it does not generate an answer yet.
+</p>
+
+<section class="panel">
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="button" type="submit">Search documents</button>
+    </form>
+</section>
+
+{% if searched %}
+    {% if results %}
+        <h2>Retrieved passages</h2>
+
+        {% for result in results %}
+            <section class="panel">
+                <h3>{{ result.title }}</h3>
+
+                <p>
+                    {% if result.is_txt %}
+                        Text document
+                    {% else %}
+                        Page {{ result.page_number }}
+                    {% endif %}
+                    · Cosine distance: {{ result.distance|floatformat:3 }}
+                </p>
+
+                <pre class="document-text">{{ result.text }}</pre>
+            </section>
+        {% endfor %}
+
+        <p>
+            Lower distance means greater similarity.
+            This value is not a confidence score.
+        </p>
+    {% else %}
+        <section class="panel">
+            <p>
+                No searchable documents are available.
+                Prepare chunks and generate embeddings for an active document.
+            </p>
+        </section>
+    {% endif %}
+{% endif %}
+{% endblock %}

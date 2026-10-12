@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Replace {{ document.title }}{% endblock %}
+
+{% block content %}
+<p class="eyebrow">Knowledge base</p>
+<h1>Upload replacement</h1>
+
+<section class="panel">
+    <h2>{{ document.title }}</h2>
+
+    <p>
+        Current version: {{ document.version }}.
+        Replacement version: {{ next_version }}.
+    </p>
+
+    <p>
+        The replacement keeps the same title and category.
+        The current version remains available for chat until
+        the replacement is successfully indexed.
+    </p>
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+
+        <div class="actions">
+            <button class="button" type="submit">
+                Upload replacement
+            </button>
+
+            <a class="button secondary"
+               href="{% url 'support:document_detail' document.pk %}">
+                Cancel
+            </a>
+        </div>
+    </form>
+</section>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Support tickets{% endblock %}
+
+{% block content %}
+<p class="eyebrow">Staff workspace</p>
+<h1>Support tickets</h1>
+
+<section class="panel">
+    <form method="get">
+        {{ filter_form.as_p }}
+
+        <div class="actions">
+            <button class="button" type="submit">Apply filters</button>
+            <a class="button secondary"
+               href="{% url 'support:staff_ticket_list' %}">
+                Clear filters
+            </a>
+        </div>
+    </form>
+</section>
+
+<p>{{ page_obj.paginator.count }} matching ticket(s).</p>
+
+{% for ticket in page_obj %}
+    <section class="panel">
+        <h2>
+            <a href="{% url 'support:staff_ticket_detail' ticket.pk %}">
+                {{ ticket.reference }}
+            </a>
+        </h2>
+
+        <p>
+            <strong>{{ ticket.get_status_display }}</strong>
+            · {{ ticket.created_at|date:"d M Y, H:i" }}
+        </p>
+
+        <p>
+            {{ ticket.contact_email|default:ticket.contact_phone }}
+        </p>
+
+        {% if ticket.order_reference %}
+            <p>Order: {{ ticket.order_reference }}</p>
+        {% endif %}
+
+        <p>{{ ticket.description|truncatechars:180 }}</p>
+    </section>
+{% empty %}
+    <section class="panel">
+        <p>No tickets match these filters.</p>
+    </section>
+{% endfor %}
+
+{% if page_obj.paginator.num_pages > 1 %}
+    <div class="actions">
+        {% if page_obj.has_previous %}
+            <a class="button secondary"
+               href="?page={{ page_obj.previous_page_number }}&amp;{{ filter_query }}">
+                Previous
+            </a>
+        {% endif %}
+
+        <span>
+            Page {{ page_obj.number }}
+            of {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+            <a class="button secondary"
+               href="?page={{ page_obj.next_page_number }}&amp;{{ filter_query }}">
+                Next
+            </a>
+        {% endif %}
+    </div>
+{% endif %}
+
+<p>
+    <a href="{% url 'support:staff_dashboard' %}">
+        Back to staff workspace
+    </a>
+</p>
+{% endblock %}

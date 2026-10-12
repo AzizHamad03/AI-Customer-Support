@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}My tickets{% endblock %}
+
+{% block content %}
+<p class="eyebrow">Human support</p>
+<h1>My tickets</h1>
+
+<p class="intro">
+    View support requests created in this browser session.
+    Open a ticket to see its details and current status.
+</p>
+
+<div class="actions ticket-actions">
+    <a class="button" href="{% url 'support:ticket_request' %}">
+        Request human support
+    </a>
+    <a class="button secondary" href="{% url 'support:chat' %}">
+        Back to chat
+    </a>
+</div>
+
+{% for ticket in tickets %}
+    <section class="panel">
+        <h2>
+            <a href="{% url 'support:ticket_detail' ticket.pk %}">
+                {{ ticket.reference }}
+            </a>
+        </h2>
+
+        <p>
+            <strong>{{ ticket.get_status_display }}</strong>
+            · Created {{ ticket.created_at|date:"d M Y, H:i" }}
+        </p>
+
+        {% if ticket.order_reference %}
+            <p>Order reference: {{ ticket.order_reference }}</p>
+        {% endif %}
+
+        <p>{{ ticket.description|truncatechars:180 }}</p>
+
+        <a href="{% url 'support:ticket_detail' ticket.pk %}">
+            View ticket details
+        </a>
+    </section>
+{% empty %}
+    <section class="panel">
+        <h2>No tickets yet</h2>
+        <p>
+            When you confirm a support request, it will appear here.
+        </p>
+    </section>
+{% endfor %}
+{% endblock %}

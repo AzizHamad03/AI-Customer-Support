@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<p class="eyebrow">Customer support made simpler</p>
+<h1>AI Customer Support Assistant</h1>
+
+<p class="intro">
+    Find answers to store questions using document-based AI chat.
+</p>
+
+<section class="panel">
+    <span class="badge">Document chat available</span>
+    <h2>Ask the store assistant</h2>
+
+    <p>
+        Ask questions using indexed store documents, view supporting sources,
+        and return to your saved conversation.
+    </p>
+
+    <div class="actions">
+        <a class="button" href="{% url 'support:chat' %}">
+            Open customer chat
+        </a>
+        <a class="button secondary"
+           href="{% url 'support:staff_dashboard' %}">
+            Open staff workspace
+        </a>
+        <a class="button secondary" href="{% url 'support:health' %}">
+            Check application health
+        </a>
+    </div>
+</section>
+
+<h2>Features</h2>
+
+<div class="grid">
+    <section class="card">
+        <h3>Store documents</h3>
+        <p>
+            Staff can upload policies, extract their text, and index them
+            for the assistant.
+        </p>
+    </section>
+
+    <section class="card">
+        <h3>Answers with sources</h3>
+        <p>
+            Ask questions and inspect the document passages supporting
+            each answer.
+        </p>
+    </section>
+
+    <section class="card">
+        <h3>Human support</h3>
+        <p>
+            Review and confirm a support request, then check its status
+            from My tickets.
+        </p>
+        <a href="{% url 'support:customer_ticket_list' %}">
+            View my tickets
+        </a>
+    </section>
+</div>
+{% endblock %}

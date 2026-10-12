@@ -1,0 +1,51 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}AI Customer Support Assistant{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'support/style.css' %}">
+</head>
+
+<body>
+    <header>
+        <nav aria-label="Main navigation">
+            <a class="brand" href="{% url 'support:home' %}">
+                Support Assistant
+            </a>
+
+            <div>
+                <a href="{% url 'support:home' %}">Home</a>
+
+                <a href="{% url 'support:staff_dashboard' %}">
+                    Staff workspace
+                </a>
+
+                <a href="{% url 'support:customer_ticket_list' %}">
+                    My tickets
+                </a>
+
+                {% if user.is_staff %}
+                    <form class="inline"
+                          method="post"
+                          action="{% url 'admin:logout' %}">
+                        {% csrf_token %}
+                        <button class="link" type="submit">
+                            Log out
+                        </button>
+                    </form>
+                {% endif %}
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        CAIE2 course project · Demonstration store
+    </footer>
+</body>
+</html>

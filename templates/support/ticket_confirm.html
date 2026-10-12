@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Confirm support ticket{% endblock %}
+
+{% block content %}
+<p class="eyebrow">Review before submitting</p>
+<h1>Confirm your ticket</h1>
+
+<p class="intro">
+    No ticket has been created yet. Check the details below.
+</p>
+
+{% for message in messages %}
+    <p role="status">{{ message }}</p>
+{% endfor %}
+
+<section class="panel">
+    <h2>Contact details</h2>
+
+    {% if details.contact_email %}
+        <p>Email: {{ details.contact_email }}</p>
+    {% endif %}
+
+    {% if details.contact_phone %}
+        <p>Phone: {{ details.contact_phone }}</p>
+    {% endif %}
+
+    <h2>Issue description</h2>
+    <p class="chat-content">{{ details.description }}</p>
+
+    <h2>Order reference</h2>
+    <p>{{ details.order_reference|default:"Not provided" }}</p>
+
+    <p>
+        This request will be linked to your current chat conversation.
+        Staff will be able to review both.
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="actions">
+            <button class="button"
+                    type="submit"
+                    name="confirm"
+                    value="yes">
+                Confirm and create ticket
+            </button>
+
+            <a class="button secondary"
+               href="{% url 'support:ticket_request' %}">
+                Edit details
+            </a>
+
+            <a class="button secondary"
+               href="{% url 'support:chat' %}">
+                Cancel
+            </a>
+        </div>
+    </form>
+</section>
+{% endblock %}

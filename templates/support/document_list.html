@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Store documents{% endblock %}
+
+{% block content %}
+<p class="eyebrow">Knowledge base</p>
+<h1>Store documents</h1>
+<p class="intro">
+    Uploaded documents will become available to the assistant after indexing.
+</p>
+
+{% for message in messages %}
+    <p role="status">{{ message }}</p>
+{% endfor %}
+
+<div class="actions">
+    <a class="button" href="{% url 'support:document_upload' %}">
+        Upload document
+    </a>
+    <a class="button secondary" href="{% url 'support:staff_dashboard' %}">
+        Staff workspace
+    </a>
+</div>
+
+{% for document in documents %}
+    <section class="panel document-item">
+        <h2>
+            <a href="{% url 'support:document_detail' document.pk %}">
+                {{ document.title }}
+            </a>
+        </h2>
+        <p>
+            {{ document.get_category_display }}
+            · {{ document.get_status_display }}
+            · {% if document.is_active %}Active{% else %}Inactive{% endif %}
+        </p>
+        <p>
+            Uploaded by {{ document.uploaded_by.username }}
+            on {{ document.created_at|date:"d M Y, H:i" }}
+        </p>
+    </section>
+{% empty %}
+    <section class="panel document-item">
+        <h2>No documents yet</h2>
+        <p>Upload your first store policy to get started.</p>
+    </section>
+{% endfor %}
+{% endblock %}

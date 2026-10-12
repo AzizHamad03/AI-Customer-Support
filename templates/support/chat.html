@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Customer chat{% endblock %}
+
+{% block content %}
+<p class="eyebrow">Customer support</p>
+<h1>Ask the store assistant</h1>
+
+<p class="intro">
+    Ask about store policies. Answers use approved documents
+    and show their supporting sources.
+</p>
+
+<div class="actions ticket-actions">
+    <a class="button secondary"
+       href="{% url 'support:ticket_request' %}">
+        Request human support
+    </a>
+</div>
+
+<section class="panel">
+    <div id="chat-messages"
+         aria-live="polite"
+         aria-relevant="additions"></div>
+
+    <p id="chat-empty">
+        Start with a question, such as “How much does shipping cost?”
+    </p>
+
+    <p id="chat-status" role="status"></p>
+
+    <form id="chat-form"
+          data-api-url="{% url 'support:chat_api' %}">
+        {% csrf_token %}
+
+        <label for="chat-question">Your question</label>
+        <textarea id="chat-question"
+                  rows="3"
+                  maxlength="1000"
+                  required></textarea>
+
+        <div class="actions">
+            <button id="chat-send" class="button" type="submit">
+                Send
+            </button>
+        </div>
+    </form>
+</section>
+
+<script src="{% static 'support/chat.js' %}" defer></script>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}{{ ticket.reference }}{% endblock %}
+
+{% block content %}
+<p class="eyebrow">Support request</p>
+<h1>{{ ticket.reference }}</h1>
+
+<section class="panel">
+    <p>
+        Your ticket is saved and available for staff review.
+    </p>
+
+    <p><strong>Status:</strong> {{ ticket.get_status_display }}</p>
+    <p>
+        <strong>Created:</strong>
+        {{ ticket.created_at|date:"d M Y, H:i" }}
+    </p>
+
+    {% if ticket.contact_email %}
+        <p><strong>Email:</strong> {{ ticket.contact_email }}</p>
+    {% endif %}
+
+    {% if ticket.contact_phone %}
+        <p><strong>Phone:</strong> {{ ticket.contact_phone }}</p>
+    {% endif %}
+
+    <h2>Issue description</h2>
+    <p class="chat-content">{{ ticket.description }}</p>
+
+    <p>
+        <strong>Order reference:</strong>
+        {{ ticket.order_reference|default:"Not provided" }}
+    </p>
+
+    <div class="actions">
+        <a class="button secondary"
+        href="{% url 'support:customer_ticket_list' %}">
+            My tickets
+        </a>
+        <a class="button" href="{% url 'support:chat' %}">
+            Back to chat
+        </a>
+    </div>
+</section>
+{% endblock %}

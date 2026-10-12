@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}{{ ticket.reference }}{% endblock %}
+
+{% block content %}
+<p class="eyebrow">Support ticket</p>
+<h1>{{ ticket.reference }}</h1>
+
+{% for message in messages %}
+    <p role="status">{{ message }}</p>
+{% endfor %}
+
+<section class="panel">
+    <h2>Customer request</h2>
+
+    {% if ticket.contact_email %}
+        <p><strong>Email:</strong> {{ ticket.contact_email }}</p>
+    {% endif %}
+
+    {% if ticket.contact_phone %}
+        <p><strong>Phone:</strong> {{ ticket.contact_phone }}</p>
+    {% endif %}
+
+    <p>
+        <strong>Order:</strong>
+        {{ ticket.order_reference|default:"Not provided" }}
+    </p>
+
+    <p>
+        <strong>Created:</strong>
+        {{ ticket.created_at|date:"d M Y, H:i" }}
+    </p>
+
+    <p class="chat-content">{{ ticket.description }}</p>
+</section>
+
+<section class="panel">
+    <h2>Ticket status</h2>
+
+    <form method="post">
+        {% csrf_token %}
+        {{ status_form.as_p }}
+        <button class="button" type="submit">Save status</button>
+    </form>
+</section>
+
+<h2>Linked conversation</h2>
+
+{% for chat_message in conversation_messages %}
+    <article class="chat-message {{ chat_message.role }}">
+        <h3>{{ chat_message.get_role_display }}</h3>
+
+        <p class="chat-content">{{ chat_message.content }}</p>
+
+        {% for citation in chat_message.citations.all %}
+            <details>
+                <summary>
+                    {{ citation.document_title }}
+                    ·
+                    {% if citation.is_txt %}
+                        Text document
+                    {% else %}
+                        Page {{ citation.page_number }}
+                    {% endif %}
+                </summary>
+
+                <pre class="document-text">{{ citation.source_text }}</pre>
+            </details>
+        {% endfor %}
+
+        <p>{{ chat_message.created_at|date:"d M Y, H:i" }}</p>
+    </article>
+{% empty %}
+    <p>This conversation has no messages.</p>
+{% endfor %}
+
+<p>
+    <a href="{% url 'support:staff_ticket_list' %}">
+        Back to tickets
+    </a>
+</p>
+{% endblock %}

@@ -1,0 +1,40 @@
+# Secrets and local environment settings
+.env
+.env.*
+!.env.example
+
+# Python virtual environments
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local databases and exported data
+*.sqlite3
+*.sqlite3-journal
+local_data.json
+
+# Uploaded documents and collected static files
+media/
+staticfiles/
+
+# Test and coverage output
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Logs
+*.log
+
+# Editors
+.idea/
+.vscode/
+
+# macOS
+.DS_Store
+._*
+.Spotlight-V100/
+.Trashes/

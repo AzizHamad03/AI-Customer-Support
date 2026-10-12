@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}{{ document.title }}{% endblock %}
+
+{% block content %}
+<p class="eyebrow">Knowledge base</p>
+<h1>{{ document.title }}</h1>
+
+<p class="intro">
+    {{ document.get_category_display }}
+    · {{ document.get_status_display }}
+</p>
+
+{% for message in messages %}
+    <p role="status">{{ message }}</p>
+{% endfor %}
+
+<section class="panel">
+    <h2>Document version</h2>
+
+    <p>Version {{ document.version }}</p>
+
+    {% if document.replaces %}
+        <p>
+            Replaces
+            <a href="{% url 'support:document_detail' document.replaces.pk %}">
+                version {{ document.replaces.version }}
+            </a>.
+        </p>
+
+        {% if document.status != "ready" %}
+            <p>
+                This replacement is not available for chat yet.
+                Index it successfully to activate it and retire
+                the original version.
+            </p>
+        {% endif %}
+    {% endif %}
+
+    {% if replacement %}
+        <p>
+            This version has been replaced by
+            <a href="{% url 'support:document_detail' replacement.pk %}">
+                version {{ replacement.version }}
+            </a>.
+        </p>
+    {% elif pending_replacement %}
+        <p>
+            A replacement is waiting for processing:
+            <a href="{% url 'support:document_detail' pending_replacement.pk %}">
+                version {{ pending_replacement.version }}
+            </a>.
+            This version remains available unless manually deactivated.
+        </p>
+    {% endif %}
+
+    {% if can_replace %}
+        <a class="button"
+           href="{% url 'support:document_replace' document.pk %}">
+            Upload replacement
+        </a>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <h2>Document processing</h2>
+
+    {% if document.status == "pending" %}
+        <p>This document is uploaded and waiting for text extraction.</p>
+    {% elif document.status == "extracted" %}
+        <p>
+            Text has been extracted from
+            {{ document.extracted_pages|length }} page(s),
+            containing {{ character_count }} characters.
+        </p>
+        <p>
+            Prepare chunks, then generate embeddings to make this
+            document ready for chat.
+        </p>
+    {% elif document.status == "failed" %}
+        <p class="processing-error">{{ document.processing_error }}</p>
+    {% elif document.status == "ready" %}
+        <p>This document has been indexed for the assistant.</p>
+    {% endif %}
+
+    {% if document.processing_error and document.status == "extracted" %}
+        <p class="processing-error">
+            Indexing failed: {{ document.processing_error }}
+        </p>
+    {% endif %}
+
+    <div class="actions">
+        {% if document.status == "pending" or document.status == "failed" %}
+            <form method="post"
+                  action="{% url 'support:document_process' document.pk %}">
+                {% csrf_token %}
+                <button class="button" type="submit">
+                    Extract text
+                </button>
+            </form>
+        {% endif %}
+
+        {% if document.status == "extracted" %}
+            <form method="post"
+                  action="{% url 'support:document_prepare_chunks' document.pk %}">
+                {% csrf_token %}
+                <button class="button" type="submit">
+                    Prepare chunks
+                </button>
+            </form>
+        {% endif %}
+
+        {% if document.status == "extracted" and chunks %}
+            <form method="post"
+                  action="{% url 'support:document_index' document.pk %}">
+                {% csrf_token %}
+                <button class="button" type="submit">
+                    Generate embeddings
+                </button>
+            </form>
+        {% endif %}
+
+        <a class="button secondary"
+           href="{% url 'support:document_list' %}">
+            Back to documents
+        </a>
+    </div>
+</section>
+
+{% if document.status == "ready" %}
+    <section class="panel">
+        <h2>Availability for chat</h2>
+
+        {% if document.is_active %}
+            <p>This document is available for future answers.</p>
+        {% else %}
+            <p>
+                This document is excluded from future searches.
+                Previously saved messages and citations remain available.
+            </p>
+        {% endif %}
+
+        {% if replacement %}
+            <p>
+                A replaced version cannot be reactivated.
+                Manage availability from its replacement document.
+            </p>
+        {% else %}
+            <form method="post"
+                  action="{% url 'support:document_set_active' document.pk %}">
+                {% csrf_token %}
+
+                {% if document.is_active %}
+                    <button class="button secondary"
+                            type="submit"
+                            name="action"
+                            value="deactivate">
+                        Deactivate document
+                    </button>
+                {% else %}
+                    <button class="button"
+                            type="submit"
+                            name="action"
+                            value="activate">
+                        Activate document
+                    </button>
+                {% endif %}
+            </form>
+        {% endif %}
+    </section>
+{% endif %}
+
+{% if document.extracted_pages %}
+    <h2>Extracted text</h2>
+
+    {% for page in document.extracted_pages %}
+        <section class="panel">
+            <h3>
+                {% if document.file.name|lower|slice:"-4:" == ".txt" %}
+                    Text document
+                {% else %}
+                    Page {{ page.page }}
+                {% endif %}
+            </h3>
+
+            <pre class="document-text">{{ page.text }}</pre>
+        </section>
+    {% endfor %}
+{% endif %}
+
+{% if chunks %}
+    <h2>RAG chunks</h2>
+
+    <p>
+        {{ chunks|length }} chunk(s) prepared.
+
+        {% if document.status == "ready" %}
+            {% if document.is_active %}
+                Embeddings are saved and available for search.
+            {% else %}
+                Embeddings are saved, but this document is excluded
+                from search while inactive.
+            {% endif %}
+        {% else %}
+            Embeddings have not been generated yet.
+        {% endif %}
+    </p>
+
+    {% for chunk in chunks %}
+        <section class="panel">
+            <h3>
+                Chunk {{ forloop.counter }}
+                ·
+                {% if document.file.name|lower|slice:"-4:" == ".txt" %}
+                    Text document
+                {% else %}
+                    Page {{ chunk.page_number }}
+                {% endif %}
+            </h3>
+
+            <pre class="document-text">{{ chunk.text }}</pre>
+        </section>
+    {% endfor %}
+{% endif %}
+{% endblock %}

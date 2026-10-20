@@ -66,7 +66,7 @@ class RagFailureTests(TestCase):
         self.addCleanup(rewrite.stop)
 
         search = patch(
-            "support.services.chat.search_knowledge_base",
+            "support.services.chat.search_with_agent",
             return_value=[self.match],
         )
         self.search = search.start()

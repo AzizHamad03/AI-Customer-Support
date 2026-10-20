@@ -1,7 +1,10 @@
+import logging
+
 from django.db import transaction
 
 from support.models import KnowledgeDocument
-import logging
+
+
 
 logger = logging.getLogger(__name__)
 

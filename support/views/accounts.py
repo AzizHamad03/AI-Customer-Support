@@ -13,7 +13,7 @@ from support.services.accounts import (
 
 class CustomerLoginView(LoginView):
     template_name = "support/login.html"
-    redirect_authenticated_user = True
+    redirect_authenticated_user = False
 
     def form_valid(self, form):
         user = form.get_user()

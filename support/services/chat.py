@@ -1,10 +1,9 @@
 import re
 
+from django.contrib.auth import get_user_model
 from django.db import transaction
 
-from support.ai.agent import (
-    search_with_agent as search_knowledge_base,
-)
+from support.ai.agent import search_with_agent
 from support.ai.answers import (
     ChatError,
     generate_answer,
@@ -17,9 +16,9 @@ from support.models import (
     Message,
     MessageCitation,
 )
-from django.contrib.auth import get_user_model
-
 from support.services.accounts import ACTIVE_CONVERSATION_KEY
+
+
 
 class ConversationChanged(ChatError):
     pass
@@ -210,7 +209,7 @@ def send_message(conversation_id, question):
     ]
 
     standalone_question = make_standalone_question(question, history)
-    matches = search_knowledge_base(standalone_question)
+    matches = search_with_agent(standalone_question)
 
     source_map = {
         f"S{number}": match

@@ -2,6 +2,10 @@ from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import (
+    require_GET,
+    require_http_methods,
+)
 
 from support.forms import TicketFilterForm, TicketStatusForm
 from support.models import SupportTicket
@@ -11,7 +15,8 @@ from support.services.tickets import (
 )
 
 
-@staff_member_required
+@staff_member_required(login_url="support:login")
+@require_GET
 def staff_ticket_list(request):
     filter_form = TicketFilterForm(request.GET)
 
@@ -41,7 +46,8 @@ def staff_ticket_list(request):
     )
 
 
-@staff_member_required
+@staff_member_required(login_url="support:login")
+@require_http_methods(["GET", "POST"])
 def staff_ticket_detail(request, pk):
     ticket = get_object_or_404(
         SupportTicket.objects.select_related("conversation"),

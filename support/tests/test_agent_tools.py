@@ -1,24 +1,23 @@
 from unittest.mock import Mock, patch
 
+from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import (
     ValidationError as DjangoValidationError,
 )
-from django.test import Client, RequestFactory, TestCase
+from django.test import Client, TestCase
 from django.urls import reverse
 from langchain_core.messages import AIMessage
 from openai import APIConnectionError
-from pydantic import ValidationError
 
 from support.ai.agent import search_with_agent
 from support.ai.answers import ChatError
-from support.ai.tools import (
-    DRAFT_KEY,
-    ToolPermissionError,
-    execute_tool,
-)
+from support.ai.tools import TOOL_SCHEMAS, execute_tool
 from support.models import Message, SupportTicket
-
-from django.contrib.auth.models import AnonymousUser
+from support.services.tickets import (
+    DRAFT_KEY,
+    TicketConfirmationError,
+    confirm_ticket_draft,
+)
 
 def tool_call(name, arguments, identifier="call-1"):
     return AIMessage(
@@ -162,10 +161,10 @@ class AgentLoopTests(TestCase):
         self.search.assert_not_called()
 
     def test_chat_confirmation_does_not_authorize_ticket_creation(self):
-        self.model.invoke.return_value = tool_call(
-            "create_support_ticket",
-            {},
-        )
+        self.model.invoke.side_effect = [
+            tool_call("create_support_ticket", {}),
+            AIMessage(content="Finished."),
+        ]
 
         self.assertEqual(
             search_with_agent(
@@ -175,6 +174,19 @@ class AgentLoopTests(TestCase):
         )
         self.assertEqual(SupportTicket.objects.count(), 0)
         self.assertEqual(Message.objects.count(), 0)
+
+    def test_ticket_creation_is_not_an_available_tool(self):
+        names = {
+            schema["function"]["name"]
+            for schema in TOOL_SCHEMAS
+        }
+
+        self.assertEqual(names, {"search_knowledge_base"})
+
+        with self.assertRaises(ValueError):
+            execute_tool("create_support_ticket", {})
+
+        self.assertEqual(SupportTicket.objects.count(), 0)
 
     def test_provider_failure_becomes_chat_error(self):
         self.model.invoke.side_effect = APIConnectionError(
@@ -187,7 +199,7 @@ class AgentLoopTests(TestCase):
         self.search.assert_not_called()
 
 
-class TicketToolTests(TestCase):
+class TicketDraftConfirmationTests(TestCase):
     def setUp(self):
         self.fields = {
             "contact_email": "customer@example.com",
@@ -203,88 +215,80 @@ class TicketToolTests(TestCase):
             self.fields,
         )
 
-    def request(self, *, session=None, **changes):
+    def confirm(
+        self,
+        *,
+        session=None,
+        confirmed=True,
+        request_id=None,
+    ):
         if session is None:
             session = self.client.session
 
-        data = {
-            "confirm": "yes",
-            "request_id": self.client.session[
+        if request_id is None:
+            request_id = self.client.session[
                 DRAFT_KEY
-            ]["request_id"],
-        } | changes
+            ]["request_id"]
 
-        request = RequestFactory().post(
-            "/support/confirm/",
-            data,
+        return confirm_ticket_draft(
+            session,
+            AnonymousUser(),
+            request_id,
+            confirmed=confirmed,
         )
-        request.session = session
-        request.user = AnonymousUser()
-        return request
 
-    def test_ticket_requires_request_and_verified_confirmation(self):
-        with self.assertRaises(ToolPermissionError):
-            execute_tool("create_support_ticket", {})
-
-        with self.assertRaises(ToolPermissionError):
-            execute_tool(
-                "create_support_ticket",
-                {},
-                request=self.request(confirm="no"),
-            )
+    def test_ticket_requires_explicit_confirmation(self):
+        with self.assertRaises(TicketConfirmationError):
+            self.confirm(confirmed=False)
 
         self.assertEqual(SupportTicket.objects.count(), 0)
 
-    def test_model_cannot_supply_confirmation_or_ticket_fields(self):
-        with self.assertRaises(ValidationError):
-            execute_tool(
-                "create_support_ticket",
-                {
-                    "confirmed": True,
-                    "contact_email": "other@example.com",
-                },
-                request=self.request(),
-            )
+    def test_ticket_requires_saved_draft(self):
+        session = self.client.session
+        session.pop(DRAFT_KEY)
+
+        with self.assertRaises(TicketConfirmationError):
+            self.confirm(session=session)
 
         self.assertEqual(SupportTicket.objects.count(), 0)
 
     def test_confirmed_ticket_uses_saved_details_and_is_idempotent(self):
-        request = self.request(
-            contact_email="forged@example.com",
+        request_id = self.client.session[
+            DRAFT_KEY
+        ]["request_id"]
+
+        # Extra POST fields must not replace saved draft details.
+        response = self.client.post(
+            reverse("support:ticket_confirm"),
+            {
+                "confirm": "yes",
+                "request_id": request_id,
+                "contact_email": "forged@example.com",
+                "description": "Forged replacement description.",
+            },
         )
 
-        first = execute_tool(
-            "create_support_ticket",
-            {},
-            request=request,
-        )
-        second = execute_tool(
-            "create_support_ticket",
-            {},
-            request=request,
-        )
+        self.assertEqual(response.status_code, 302)
 
-        self.assertEqual(first, second)
+        first = SupportTicket.objects.get()
+        second = self.confirm()
+
+        self.assertEqual(first.pk, second.pk)
         self.assertEqual(SupportTicket.objects.count(), 1)
         self.assertEqual(Message.objects.count(), 1)
-
-        ticket = SupportTicket.objects.get()
-
         self.assertEqual(
-            ticket.contact_email,
+            first.contact_email,
             self.fields["contact_email"],
         )
         self.assertEqual(
-            ticket.description,
+            first.description,
             self.fields["description"],
-        )
-        self.assertEqual(
-            first["reference"],
-            ticket.reference,
         )
 
     def test_stale_confirmation_page_cannot_create_new_draft(self):
-        old_id = self.client.session[DRAFT_KEY]["request_id"]
+        old_id = self.client.session[
+            DRAFT_KEY
+        ]["request_id"]
 
         self.client.post(
             reverse("support:ticket_request"),
@@ -316,12 +320,8 @@ class TicketToolTests(TestCase):
         foreign = Client().session
         foreign[DRAFT_KEY] = self.client.session[DRAFT_KEY]
 
-        with self.assertRaises(ToolPermissionError):
-            execute_tool(
-                "create_support_ticket",
-                {},
-                request=self.request(session=foreign),
-            )
+        with self.assertRaises(TicketConfirmationError):
+            self.confirm(session=foreign)
 
         self.assertEqual(SupportTicket.objects.count(), 0)
 
@@ -337,11 +337,7 @@ class TicketToolTests(TestCase):
         session[DRAFT_KEY] = draft
 
         with self.assertRaises(DjangoValidationError):
-            execute_tool(
-                "create_support_ticket",
-                {},
-                request=self.request(session=session),
-            )
+            self.confirm(session=session)
 
         self.assertEqual(SupportTicket.objects.count(), 0)
 

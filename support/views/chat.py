@@ -7,6 +7,7 @@ from rest_framework.decorators import (
     api_view,
     authentication_classes,
     permission_classes,
+    throttle_classes,
 )
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -15,6 +16,10 @@ from support.ai.answers import ChatError
 from support.ai.embeddings import EmbeddingError
 from support.api.authentication import ChatSessionAuthentication
 from support.api.serializers import ChatMessageSerializer
+from support.api.throttles import (
+    ChatAnonRateThrottle,
+    ChatUserRateThrottle,
+)
 from support.services.chat import (
     ConversationChanged,
     KnowledgeChanged,
@@ -35,6 +40,10 @@ def chat_page(request):
 @api_view(["GET", "POST"])
 @authentication_classes([ChatSessionAuthentication])
 @permission_classes([AllowAny])
+@throttle_classes([
+    ChatAnonRateThrottle,
+    ChatUserRateThrottle,
+])
 def chat_api(request):
     if request.method == "POST":
         serializer = ChatMessageSerializer(data=request.data)

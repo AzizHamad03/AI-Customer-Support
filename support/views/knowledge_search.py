@@ -6,7 +6,7 @@ from support.forms import KnowledgeSearchForm
 from support.services.retrieval import search_knowledge_base
 
 
-@staff_member_required
+@staff_member_required(login_url="support:login")
 def knowledge_search(request):
     form = KnowledgeSearchForm(
         request.POST if request.method == "POST" else None

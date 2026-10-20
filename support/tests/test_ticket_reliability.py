@@ -4,6 +4,7 @@ from threading import Barrier
 from unittest.mock import patch
 
 from django.conf import settings
+from django.contrib.auth.models import AnonymousUser
 from django.db import (
     OperationalError,
     close_old_connections,
@@ -12,10 +13,11 @@ from django.db import (
 from django.test import RequestFactory, TestCase, TransactionTestCase
 from django.urls import reverse
 
-from support.ai.tools import DRAFT_KEY, execute_tool
 from support.models import Message, SupportTicket
-
-from django.contrib.auth.models import AnonymousUser
+from support.services.tickets import (
+    DRAFT_KEY,
+    confirm_ticket_draft,
+)
 
 TICKET_FIELDS = {
     "contact_email": "customer@example.com",
@@ -124,11 +126,17 @@ class ConcurrentTicketConfirmationTests(TransactionTestCase):
                 request.session[DRAFT_KEY]
                 barrier.wait(timeout=10)
 
-                return execute_tool(
-                    "create_support_ticket",
-                    {},
-                    request=request,
+                ticket = confirm_ticket_draft(
+                    request.session,
+                    request.user,
+                    request.POST.get("request_id"),
+                    confirmed=request.POST.get("confirm") == "yes",
                 )
+
+                return {
+                    "ticket_id": ticket.pk,
+                    "reference": ticket.reference,
+                }
             finally:
                 connections["default"].close()
 

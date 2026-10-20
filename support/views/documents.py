@@ -1,38 +1,38 @@
+import logging
+
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.exceptions import ValidationError
+from django.db import DatabaseError
+from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import (
+    require_http_methods,
+    require_POST,
+)
 
 from support.ai.embeddings import EmbeddingError
 from support.forms import DocumentReplacementForm, DocumentUploadForm
 from support.models import KnowledgeDocument
 from support.services.chunking import prepare_document_chunks
-from support.services.document_processing import (
-    DocumentProcessingError,
-    
-)
-from support.services.documents import (
-    create_document,
-    create_replacement_document,
-    list_documents,
-    set_document_active,
-    delete_document,
-)
-from support.services.indexing import index_document
 from support.services.document_pipeline import (
     process_and_index_document,
 )
+from support.services.document_processing import DocumentProcessingError
+from support.services.documents import (
+    create_document,
+    create_replacement_document,
+    delete_document,
+    list_documents,
+    set_document_active,
+)
+from support.services.indexing import index_document
 
-import logging
 
-from django.db import DatabaseError
-from django.db.models.deletion import ProtectedError
-from django.views.decorators.http import require_http_methods
 
 logger = logging.getLogger(__name__)
 
-@staff_member_required
+@staff_member_required(login_url="support:login")
 def document_list(request):
     return render(
         request,
@@ -41,7 +41,7 @@ def document_list(request):
     )
 
 
-@staff_member_required
+@staff_member_required(login_url="support:login")
 def document_upload(request):
     if request.method == "POST":
         form = DocumentUploadForm(request.POST, request.FILES)
@@ -71,7 +71,7 @@ def document_upload(request):
     )
 
 
-@staff_member_required
+@staff_member_required(login_url="support:login")
 def document_replace(request, pk):
     original = get_object_or_404(KnowledgeDocument, pk=pk)
 
@@ -115,7 +115,7 @@ def document_replace(request, pk):
     )
 
 
-@staff_member_required
+@staff_member_required(login_url="support:login")
 def document_detail(request, pk):
     document = get_object_or_404(
         KnowledgeDocument.objects.select_related("replaces"),
@@ -159,7 +159,7 @@ def document_detail(request, pk):
     )
 
 
-@staff_member_required
+@staff_member_required(login_url="support:login")
 @require_POST
 def document_process(request, pk):
     document = get_object_or_404(KnowledgeDocument, pk=pk)
@@ -187,7 +187,7 @@ def document_process(request, pk):
     )
 
 
-@staff_member_required
+@staff_member_required(login_url="support:login")
 @require_POST
 def document_prepare_chunks(request, pk):
     document = get_object_or_404(KnowledgeDocument, pk=pk)
@@ -205,7 +205,7 @@ def document_prepare_chunks(request, pk):
     return redirect("support:document_detail", pk=document.pk)
 
 
-@staff_member_required
+@staff_member_required(login_url="support:login")
 @require_POST
 def document_index(request, pk):
     document = get_object_or_404(KnowledgeDocument, pk=pk)
@@ -235,7 +235,7 @@ def document_index(request, pk):
     return redirect("support:document_detail", pk=document.pk)
 
 
-@staff_member_required
+@staff_member_required(login_url="support:login")
 @require_POST
 def document_set_active(request, pk):
     document = get_object_or_404(KnowledgeDocument, pk=pk)
@@ -262,7 +262,7 @@ def document_set_active(request, pk):
 
     return redirect("support:document_detail", pk=pk)
 
-@staff_member_required
+@staff_member_required(login_url="support:login")
 @require_http_methods(["GET", "POST"])
 def document_delete(request, pk):
     document = get_object_or_404(KnowledgeDocument, pk=pk)

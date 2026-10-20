@@ -1,8 +1,8 @@
 from django import forms
 
 from support.models import KnowledgeDocument, SupportTicket
-from django import forms
-from support.models import KnowledgeDocument
+
+
 
 class DocumentUploadForm(forms.ModelForm):
     class Meta:

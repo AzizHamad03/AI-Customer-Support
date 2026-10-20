@@ -8,7 +8,7 @@ def home(request):
     return render(request, "support/home.html")
 
 
-@staff_member_required
+@staff_member_required(login_url="support:login")
 def staff_dashboard(request):
     return render(
         request,

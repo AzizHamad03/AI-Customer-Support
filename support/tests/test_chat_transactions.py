@@ -27,7 +27,7 @@ class ChatTransactionTests(TransactionTestCase):
                 side_effect=rewrite,
             ),
             patch(
-                "support.services.chat.search_knowledge_base",
+                "support.services.chat.search_with_agent",
                 side_effect=retrieve,
             ),
         ):

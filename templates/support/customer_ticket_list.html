@@ -7,7 +7,11 @@
 <h1>My tickets</h1>
 
 <p class="intro">
-    View support requests created in this browser session.
+    {% if user.is_authenticated %}
+        View support requests linked to your account.
+    {% else %}
+        View support requests created in this browser session.
+    {% endif %}
     Open a ticket to see its details and current status.
 </p>
 

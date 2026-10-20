@@ -12,7 +12,7 @@ class ChatTests(TestCase):
         side_effect=lambda question, history: question,
     )
     @patch(
-        "support.services.chat.search_knowledge_base",
+        "support.services.chat.search_with_agent",
         return_value=[],
     )
     def test_history_is_saved_and_isolated(self, _search, _rewrite):

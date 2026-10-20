@@ -29,6 +29,11 @@ update ticket statuses through an authenticated dashboard.
 - English customer chat with bounded follow-up context.
 - Persistent messages and citation evidence.
 - Ticket validation, review, explicit confirmation, and duplicate prevention.
+- Ticket draft validation and confirmation handled by the ticket service,
+  independently of the AI tools.
+- Chat sending limits: 10 requests per minute per guest IP and 30 per minute
+  per registered account.
+- Conversation history remains readable after the chat sending limit is reached.
 - Guest chat and tickets restricted to the current browser session.
 - Customer registration, login, and POST-only logout using Django authentication.
 - Account-owned conversations and tickets accessible after logging in again.
@@ -43,16 +48,26 @@ update ticket statuses through an authenticated dashboard.
 - Staff-only document deletion with explicit confirmation, removal of search
   data, and preservation of historical citation text.
 
-A single assistant selects knowledge-search and support-ticket tools through
-a bounded tool-calling loop. Tool selection allows up to three model turns
-and two tool calls per chat request. Follow-up rewriting and grounded answer
+A single assistant selects the knowledge-search tool through a bounded
+tool-calling loop. Tool selection allows up to three model turns and two
+tool calls per chat request. Follow-up rewriting and grounded answer
 generation are separate model calls outside that loop.
 
+The tool-selection, question-rewriting, and grounded-answer prompts are
+stored in `support/ai/prompts/` and loaded through a shared helper.
+Store policy facts come from retrieved documents rather than hardcoded
+policy examples in the prompts.
+
 Ticket creation requires the customer to complete the support form, review
-the saved draft, and explicitly confirm it. The backend verifies the draft
-identifier, customer account or guest session ownership, and fields before
-executing the ticket tool.
-Chat messages cannot authorize ticket creation.
+the saved draft, and explicitly confirm it. The confirmation view calls the
+ticket service directly. The service validates the saved draft identifier,
+explicit confirmation, account or guest-session ownership, and saved fields
+before creating a ticket.
+
+Ticket saving is transactional. Repeated confirmation of the same draft
+returns the existing ticket rather than creating a duplicate.
+The AI agent has no ticket-creation tool, and chat messages cannot authorize
+ticket creation.
 
 Live order tracking, payments, refund execution, OCR, notifications, and live
 human chat handoff are outside the current scope.
@@ -89,7 +104,7 @@ session without deleting account history.
 - Pydantic and pypdf
 - Django templates, HTML, CSS, and JavaScript
 
-Python dependencies are pinned in requirements.txt. PostgreSQL and its vector
+Python dependencies are pinned in `requirements.txt`. PostgreSQL and its vector
 extension must be installed separately. There is no SQLite fallback.
 
 ## Installation
@@ -123,7 +138,7 @@ sudo service postgresql start
 Skip this step if vector is already installed for the running PostgreSQL server.
 Installing the Python pgvector package does not install the server extension.
 
-The pg_config executable must match the PostgreSQL server's major version.
+The `pg_config` executable must match the PostgreSQL server's major version.
 Build in a separate directory outside the application:
 
 ```bash
@@ -150,8 +165,8 @@ Return to your working directory with `cd ..`.
 macOS compilation requires the Xcode command-line tools. If missing, install
 them with `xcode-select --install` before building.
 
-See https://github.com/pgvector/pgvector#installation for other installation
-methods and troubleshooting.
+See the [pgvector installation guide](https://github.com/pgvector/pgvector#installation)
+for other installation methods and troubleshooting.
 
 ### 3. Create the database
 
@@ -186,12 +201,12 @@ Choose your own database password when prompted. Reuse existing roles and
 databases instead of recreating them.
 
 Enable vector as administrator before migrations. The application role does
-not need to be a superuser. CREATEDB supports local test database creation.
+not need to be a superuser. `CREATEDB` supports local test database creation.
 
 ### 4. Clone and install dependencies
 
 ```bash
-git clone YOUR_REPOSITORY_URL ai-customer-support
+git clone https://github.com/AzizHamad03/AI-Customer-Support.git ai-customer-support
 cd ai-customer-support
 python3.12 -m venv .venv
 source .venv/bin/activate
@@ -199,7 +214,7 @@ python -m pip install -r requirements.txt
 python -m pip check
 ```
 
-For a ZIP download, extract it and enter the folder containing manage.py
+For a ZIP download, extract it and enter the folder containing `manage.py`
 instead of cloning.
 
 ### 5. Configure environment variables
@@ -211,15 +226,22 @@ cp .env.example .env
 python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 ```
 
-Edit .env and set SECRET_KEY, DB_PASSWORD, and OPENAI_API_KEY.
+Edit `.env` and set `SECRET_KEY`, `DB_PASSWORD`, and `OPENAI_API_KEY`.
 Keep the signing key stable across restarts.
 
-If .env already exists, compare it with the example instead of overwriting
+`DEBUG` defaults to `False` when it is not explicitly configured.
+The supplied `.env.example` sets `DEBUG=True` for local development.
+
+When `DEBUG=False`, `SECRET_KEY` must be explicitly configured.
+Disabling debug mode alone does not provide a complete production deployment
+configuration.
+
+If `.env` already exists, compare it with the example instead of overwriting
 working credentials.
 
 | Variable | Purpose |
 | --- | --- |
-| DEBUG | Local development mode; True for this demo |
+| DEBUG | Defaults to False; set True in .env for local development |
 | SECRET_KEY | Unique, stable Django signing key |
 | ALLOWED_HOSTS | Allowed hostnames, separated by commas |
 | DB_NAME | PostgreSQL database name |
@@ -230,14 +252,14 @@ working credentials.
 | OPENAI_API_KEY | Required for embeddings and live AI answers |
 | CHAT_MODEL | Chat model; defaults to gpt-4.1-mini |
 
-The embedding model is configured in config/settings.py as
-text-embedding-3-small with 1536 dimensions. Changing the embedding model
+The embedding model is configured in `config/settings.py` as
+`text-embedding-3-small` with 1536 dimensions. Changing the embedding model
 requires compatible dimensions and reindexing.
 
-DATABASE_URL is not used. Shell environment variables take precedence over
-values loaded from .env.
+`DATABASE_URL` is not used. Shell environment variables take precedence over
+values loaded from `.env`.
 
-Never commit real credentials, .env, private uploaded documents, or ticket data.
+Never commit real credentials, `.env`, private uploaded documents, or ticket data.
 
 ### 6. Migrate and run
 
@@ -253,8 +275,11 @@ Open http://127.0.0.1:8000/.
 - Customers can use guest chat or choose Create account / Log in.
 - Staff can use Log in with their existing staff credentials; the default
   destination after login is the staff workspace.
-- `/admin/` remains available for Django administration. Unauthenticated
-  staff-workspace requests currently redirect to the admin login page.
+- `/admin/` remains available for Django administration.
+- Staff-workspace access redirects to the application's `/accounts/login/`
+  page when the visitor does not meet the staff requirement.
+- An already signed-in customer can view that login form without a redirect
+  loop and sign in with an appropriate staff account.
 - For guest-history transfer, use `/accounts/login/` or `/accounts/signup/`;
   that transfer is implemented in the application account views.
 
@@ -269,14 +294,14 @@ API credit. A ChatGPT subscription is separate from API billing.
 
 1. Open Staff workspace and sign in.
 2. Open Manage documents, then Upload document.
-3. Upload each file in sample_data/policies/ once.
+3. Upload each file in `sample_data/policies/` once.
 4. Click **Process document** to extract text, prepare chunks, and generate
    embeddings. Confirm the document is Ready and available for chat.
    If indexing fails, use the same button to retry.
 5. Open Customer chat and ask a sample question.
 6. Expand the answer's source to inspect the supporting passage.
 
-See sample_data/README.md for titles, categories, questions, and replacement
+See `sample_data/README.md` for titles, categories, questions, and replacement
 testing. Sample documents are not automatically loaded by migrations.
 
 ## Customer accounts and saved conversations
@@ -340,6 +365,35 @@ conversation-renaming interface is currently provided.
 
 Sending a chat message alone does not create a ticket.
 
+## Chat rate limits
+
+Only `POST /api/chat/` requests consume the chat sending allowance.
+
+| Visitor | Limit | Identity |
+| --- | --- | --- |
+| Guest | 10 requests per minute | IP address |
+| Registered user, including staff | 30 requests per minute | Account ID |
+
+Guest browsers sharing an IP address share the guest allowance.
+A registered account shares its allowance across browsers and devices.
+
+When the allowance is exhausted, the API returns HTTP 429 with a `detail`
+message and a `Retry-After` header. Rejected requests do not reach the chat
+service or trigger AI calls.
+
+`GET /api/chat/` remains available for reading conversation history.
+The browser displays the rate-limit message and preserves the typed question.
+
+The allowance counts POST requests that reach throttling, including requests
+that later fail validation or encounter an AI-service error.
+
+The throttles use Django's cache. The default local-memory cache suits this
+single-process demonstration. Multiple server processes require a shared
+cache for consistent counters.
+
+DRF's built-in throttles can allow some additional requests under concurrent
+load. They reduce excessive usage but do not enforce a strict spending cap.
+
 ## APIs
 
 | Endpoint | Purpose |
@@ -363,12 +417,22 @@ to open an arbitrary conversation. The server verifies ownership when selecting
 history. `conversation_id` is optional for API compatibility; the browser always
 supplies it. A supplied ID must be an integer matching the selected conversation.
 
-Chat responses include `conversation_id` and `messages`. A selection mismatch,
-concurrent conversation change, or evidence change during a cited answer returns
-409. AI/database availability failures return 503.
+Successful chat responses include `conversation_id` and `messages`.
+
+| Status | Meaning |
+| --- | --- |
+| 400 | Invalid message or request data |
+| 403 | Missing or invalid CSRF protection on a POST request |
+| 409 | Selected conversation, conversation contents, or supporting evidence changed |
+| 429 | Chat sending allowance exhausted |
+| 503 | AI service or database temporarily unavailable |
+
+Rate-limit responses include `detail` and a `Retry-After` header. Other chat
+failures may return an `error` field, while serializer validation failures
+identify the invalid field.
 
 Chat requests use the browser session cookie. POST requests require a CSRF
-token in the X-CSRFToken header, including for anonymous visitors.
+token in the `X-CSRFToken` header, including for anonymous visitors.
 
 Account, conversation-selection, and staff operations use Django pages/forms
 rather than separate REST APIs. Relevant routes include:
@@ -380,32 +444,54 @@ rather than separate REST APIs. Relevant routes include:
 | /accounts/logout/ | POST | Logout |
 | /conversations/ | GET | Registered customer's conversation list |
 | /conversations/new/ | POST | Create and select an account-owned conversation |
-| /conversations/<id>/open/ | POST | Select an owned conversation |
+| /conversations/\<id\>/open/ | POST | Select an owned conversation |
 | /support/request/ | GET, POST | Prepare a support-ticket draft |
 | /support/confirm/ | GET, POST | Review and confirm ticket creation |
 | /support/tickets/ | GET | Customer's accessible tickets |
+| /support/tickets/\<id\>/ | GET | View an accessible customer ticket |
 | /staff/ | GET | Staff dashboard |
-| /staff/documents/<id>/delete/ | GET, POST | Staff deletion review and confirmation |
+| /staff/documents/\<id\>/delete/ | GET, POST | Staff deletion review and confirmation |
+| /staff/tickets/ | GET | Search and filter staff tickets |
+| /staff/tickets/\<id\>/ | GET, POST | Review a ticket and update its status |
 
 State-changing forms include CSRF tokens. Conversation routes require login;
 staff routes require staff membership.
+
+Ticket request and confirmation pages accept GET and POST.
+Customer ticket lists and details, and the staff ticket list, accept GET only.
+The staff ticket detail accepts GET and POST.
+Unsupported methods return HTTP 405 after applicable access checks.
+
+Customer ticket lists and details use the same ownership-filtering service.
+Registered customers see their account's tickets; guests see only tickets
+belonging to their current session.
 
 ## Project structure
 
 | Location | Responsibility |
 | --- | --- |
 | config/ | Settings, root URLs, WSGI |
+| config/test_settings.py | Test configuration that prevents shared throttle counters between ordinary tests |
 | support/models/ | Separate domain models |
 | support/views/ | Pages and API request handling |
-| support/api/ | Serializer and session/CSRF authentication |
+| support/api/ | Serializer, session/CSRF authentication, and chat throttles |
 | support/services/ | Accounts, conversations, documents, retrieval, chat, and ticket rules |
-| support/ai/ | Embeddings, bounded agent, controlled tools, rewriting, structured answers |
+| support/ai/ | Embeddings, bounded search agent, search tool, rewriting, structured answers, and prompt loader |
+| support/ai/prompts/ | Markdown prompts for tool selection, question rewriting, and grounded answers |
 | support/migrations/ | Database schema and vector migration |
-| support/tests/ | Functional and permission checks |
+| support/tests/ | Functional, permission, reliability, and throttling checks |
 | templates/ | Customer and staff pages |
 | static/ | Stylesheet and browser chat code |
 | sample_data/ | Public fictional demonstration documents |
 | media/ | Runtime uploads, excluded from Git |
+
+The prompt files are:
+
+- `support/ai/prompts/tool_selection.md`
+- `support/ai/prompts/rewrite_question.md`
+- `support/ai/prompts/grounded_answer.md`
+
+They are loaded by `support/ai/prompt_loader.py`.
 
 Data persists in PostgreSQL after restarting the application. Preserve the
 database, uploaded files, and signing key.
@@ -425,29 +511,78 @@ CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
 If the test database exists, connect and ensure vector is enabled. Use
-test_<DB_NAME> if your application database name differs.
+`test_<DB_NAME>` if your application database name differs.
 
 Then run:
 
 ```bash
+python -m pip check
 python manage.py check
 python manage.py makemigrations --check --dry-run
-python manage.py test --keepdb
+python manage.py test --keepdb --settings=config.test_settings
 ```
 
-The --keepdb option retains the prepared test database and vector extension.
+The `--keepdb` option retains the prepared test database and vector extension.
 Run the full suite on PostgreSQL, not SQLite.
 
+Use `config.test_settings` for full-suite test runs. It uses a dummy cache so
+unrelated tests do not share rate-limit counters. Dedicated throttle tests
+override this with a working local-memory cache and verify the actual limits.
+
+To run the throttle and ticket-view checks separately:
+
+```bash
+python manage.py test support.tests.test_chat_throttling support.tests.test_ticket_view_rules --keepdb --settings=config.test_settings
+```
+
+Run the application normally with:
+
+```bash
+python manage.py runserver
+```
+
+Do not use `config.test_settings` to run the application.
+
 Tests cover document processing/replacement/deletion, citation preservation,
-RAG failures, controlled tools, ticket validation and duplicate prevention,
-concurrent ticket confirmation, registration/login, guest-history transfer,
-account ownership, staff permissions, conversation selection, and stale-tab
-requests.
+RAG failures, bounded agent tools, ticket draft validation, explicit
+confirmation, duplicate prevention, concurrent ticket confirmation,
+registration/login, guest-history transfer, account ownership, staff
+permissions, conversation selection, and stale-tab requests.
+
+Additional checks cover guest and account chat limits, shared IP/account
+allowances, allowance expiry, history access after throttling, ticket HTTP
+method restrictions, and application-login redirects without loops.
 
 AI requests are mocked. Tests do not require an API key and do not measure
 live model quality, latency, or memory. Invalid-PDF and simulated AI-failure
 logs can appear during successful failure-path tests; use the final test result
 and traceback output to identify actual failures.
+
+Before committing, also check:
+
+```bash
+git diff --check
+git status --short
+```
+
+### Manual verification
+
+With the server running and sample documents indexed:
+
+1. Ask a shipping question and inspect the supporting citation.
+2. Ask a follow-up question and confirm the context is interpreted correctly.
+3. Send "Create a ticket. Yes, I confirm." in chat and verify that no ticket
+   is created.
+4. Open Request human support, complete the form, and review the saved draft.
+5. Confirm the ticket and check its reference under My tickets.
+6. Repeat confirmation of the same draft and verify that no duplicate appears.
+7. Log in as staff, review the linked conversation, and update the ticket status.
+8. Open Staff workspace as a guest and verify redirection to the application
+   login page.
+9. Open Staff workspace as an ordinary customer and verify that the login form
+   appears without a redirect loop.
+
+The dedicated automated throttle tests verify rate limits without paid AI calls.
 
 ## Troubleshooting
 
@@ -462,6 +597,9 @@ and traceback output to identify actual failures.
 | API error | Key, billing, model access, and network; restart after editing .env |
 | Empty/scanned file fails | Use non-empty UTF-8 TXT or text-based PDF |
 | Conversation changed / HTTP 409 | Review reloaded history before resending; another tab or request may have changed it |
+| Chat returns HTTP 429 | Wait for the Retry-After interval; guests sharing an IP share an allowance |
+| Tests unexpectedly return HTTP 429 | Run the suite with --settings=config.test_settings |
+| Application fails because SECRET_KEY is missing | Configure a stable SECRET_KEY; DEBUG defaults to False |
 | Login-related CSRF error in an old tab | Refresh the full page after logging in or out |
 | Customer cannot access staff workspace | Expected; use an account with staff membership |
 | Cannot delete a document | Check for referencing replacement versions |
@@ -483,10 +621,17 @@ and recorded evaluation results are not included in this version. Sample
 questions are development/demo examples. Remaining deliverables include the
 performance evaluation document and final presentation.
 
-Possible later improvements include moving embedding API calls outside document
-indexing transactions, adding an overall chat-request time budget, and using
-measured evaluation results to tune retrieval. Current document indexing runs
-synchronously, and long conversation histories are loaded in full.
+Possible later improvements include:
+
+- Moving document processing to a background job.
+- Moving embedding API calls outside document-indexing transactions.
+- Adding an overall chat-request time budget.
+- Building a labeled retrieval evaluation set.
+- Using measured evaluation results to tune retrieval and select a relevance
+  threshold for weak matches.
+
+Current document indexing runs synchronously, and long conversation histories
+are loaded in full.
 
 The current scope is one demonstration store with English text chat. The
 application does not yet include password recovery, email verification, or

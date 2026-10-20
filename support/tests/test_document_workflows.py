@@ -17,7 +17,13 @@ from support.ai.embeddings import EmbeddingError
 from support.forms import DocumentUploadForm
 from support.models import KnowledgeDocument
 from support.services.chunking import prepare_document_chunks, split_text
-from support.services.document_processing import process_document
+from support.services.document_pipeline import (
+    process_and_index_document,
+)
+from support.services.document_processing import (
+    DocumentProcessingError,
+    process_document,
+)
 from support.services.documents import (
     create_document,
     create_replacement_document,
@@ -26,12 +32,7 @@ from support.services.documents import (
 from support.services.indexing import index_document
 from support.services.retrieval import search_knowledge_base
 
-from support.services.document_pipeline import (
-    process_and_index_document,
-)
-from support.services.document_processing import (
-    DocumentProcessingError,
-)
+
 
 VECTOR = [1.0] + [0.0] * 1535
 
@@ -455,7 +456,10 @@ class DocumentWorkflowTests(TestCase):
                     )
 
                     self.assertEqual(response.status_code, 302)
-                    self.assertIn("/admin/login/", response.url)
+                    self.assertIn(
+                        reverse("support:login"),
+                        response.url,
+                    )
 
         document.refresh_from_db()
 

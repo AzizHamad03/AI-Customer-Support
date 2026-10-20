@@ -5,10 +5,10 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
-from support.ai.tools import (
+from support.services.tickets import (
     DRAFT_KEY,
-    ToolPermissionError,
-    execute_tool,
+    TicketConfirmationError,
+    confirm_ticket_draft,
 )
 from support.models import (
     Conversation,
@@ -198,11 +198,12 @@ class AccountPermissionTests(TestCase):
         request.user = self.customer
         request.session = session
 
-        with self.assertRaises(ToolPermissionError):
-            execute_tool(
-                "create_support_ticket",
-                {},
-                request=request,
+        with self.assertRaises(TicketConfirmationError):
+            confirm_ticket_draft(
+                request.session,
+                request.user,
+                request.POST.get("request_id"),
+                confirmed=request.POST.get("confirm") == "yes",
             )
 
         self.assertEqual(SupportTicket.objects.count(), 0)

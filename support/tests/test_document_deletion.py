@@ -199,7 +199,10 @@ class DocumentDeletionTests(TestCase):
                         {"confirm": "yes"},
                     )
                     self.assertEqual(response.status_code, 302)
-                    self.assertIn("/admin/login/", response.url)
+                    self.assertIn(
+                        reverse("support:login"),
+                        response.url,
+                    )
 
         self.assertTrue(
             KnowledgeDocument.objects.filter(

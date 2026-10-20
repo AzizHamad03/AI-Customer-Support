@@ -154,3 +154,44 @@ class ChatThrottlingTests(TestCase):
             return_value=161.0,
         ):
             self.assertEqual(self.send().status_code, 200)
+
+    def test_changing_forwarded_header_cannot_bypass_guest_limit(self):
+        self.fill_guest_limit(ip="192.0.2.1")
+        self.send_message.reset_mock()
+
+        for forwarded_ip in [
+            "198.51.100.1",
+            "198.51.100.2",
+            "198.51.100.3, 198.51.100.4",
+        ]:
+            with self.subTest(forwarded_ip=forwarded_ip):
+                response = self.client.post(
+                    self.url,
+                    {"content": "How much does shipping cost?"},
+                    content_type="application/json",
+                    REMOTE_ADDR="192.0.2.1",
+                    HTTP_X_FORWARDED_FOR=forwarded_ip,
+                )
+
+                self.assertEqual(response.status_code, 429)
+                self.assertIn("Retry-After", response.headers)
+
+        self.send_message.assert_not_called()
+        self.assertEqual(Message.objects.count(), 0)
+
+    def test_forwarded_header_does_not_override_connecting_ip(self):
+        self.fill_guest_limit(ip="192.0.2.1")
+        self.send_message.reset_mock()
+
+        second_browser = Client()
+
+        response = second_browser.post(
+            self.url,
+            {"content": "How much does shipping cost?"},
+            content_type="application/json",
+            REMOTE_ADDR="192.0.2.2",
+            HTTP_X_FORWARDED_FOR="192.0.2.1",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.send_message.assert_called_once()

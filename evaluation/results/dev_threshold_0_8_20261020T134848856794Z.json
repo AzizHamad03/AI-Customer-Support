@@ -1,0 +1,569 @@
+{
+  "metadata": {
+    "created_at": "2026-10-20T13:48:48.856794+00:00",
+    "split": "dev",
+    "label": "threshold_0_8",
+    "dataset_sha256": "4c84ee8189a906ef45fa1b654a35e3ebc360b2f50446454044c6ccf11e9d73ca",
+    "corpus_sha256": "9de8e384286a0b86419a451df9c46c8f35e6f82dd8534a2f91c480e20159ef1d",
+    "corpus_unchanged": true,
+    "embedding_model": "text-embedding-3-small",
+    "rewrite_model": "gpt-4.1-mini",
+    "retrieval_max_distance": 0.8,
+    "chunk_words": 200,
+    "overlap_words": 30,
+    "retrieval_source_sha256": "a538fe5d2045c24983d1ad30347918956881c6e196796b254ff7a07253ea616f",
+    "rewrite_prompt_sha256": "ab88ea908df23fb44b037da2534b391aaf9d0a4e9833dd87840f2254a4e56797",
+    "corpus": [
+      {
+        "title": "Demo Store Product Catalog",
+        "version": 1,
+        "text_sha256": "6fbd83ce19ef8d8c8d3f678e41385270d320b69be55c4daa74d9f835d8b03a7a",
+        "chunks": [
+          {
+            "position": 0,
+            "page_number": 1,
+            "text_sha256": "857e9fd00a5cf01fadd0221f8367870df7a9719c1912d393e0fced858ed99803",
+            "embedding_sha256": "3b8f0802172a47833141818ac574b3c5b8afadff99ef6cf63eabcf52718274da"
+          }
+        ]
+      },
+      {
+        "title": "Demo Store Returns Policy",
+        "version": 1,
+        "text_sha256": "81ce8abc143eac2f1459c273a36c2ab4a8eb12d2285adf850676839bdbe5d0ae",
+        "chunks": [
+          {
+            "position": 0,
+            "page_number": 1,
+            "text_sha256": "ef364e662fa2ef4481f43f0f3f5c6e6e991f401101a03112936b0e8a25ddc95b",
+            "embedding_sha256": "5a98d078b8aa797752f12ac94f049a324a98a4f6a2cb96709444ccbbd20c0346"
+          }
+        ]
+      },
+      {
+        "title": "Demo Store Shipping Policy",
+        "version": 1,
+        "text_sha256": "fc793c93907e78b48537b05feb9bc6ac85446b4dc05070b719fc57ad151a3581",
+        "chunks": [
+          {
+            "position": 0,
+            "page_number": 1,
+            "text_sha256": "ceed5ad549b448b1f8386f0412a224246ac4c6bdeb6cb8e986d41fbd23d2a195",
+            "embedding_sha256": "76e889b6868280c99d59443c28d3369a1185b2d02e59abe80a5aa7b69d9c55c6"
+          }
+        ]
+      },
+      {
+        "title": "Demo Store Support Policy",
+        "version": 1,
+        "text_sha256": "d01b6eedb6d140b1e00da34eb5f375339e85f62b6f015778b7219d1cdc4d4a83",
+        "chunks": [
+          {
+            "position": 0,
+            "page_number": 1,
+            "text_sha256": "235566730b181245096569f521fa0e9895f458868eb1e99f1a1ebe624e7203d9",
+            "embedding_sha256": "629291c08819db468a0953ade8003197bebbf0c51e23481d0127016b065ba6e6"
+          }
+        ]
+      }
+    ]
+  },
+  "summary": {
+    "total_cases": 8,
+    "successful_cases": 8,
+    "error_count": 0,
+    "answerable_and_followup_cases": 6,
+    "unsupported_cases": 2,
+    "mean_latency_ms": 1059.1,
+    "at_k": {
+      "1": {
+        "mean_evidence_coverage": 1.0,
+        "complete_evidence_rate": 1
+      },
+      "3": {
+        "mean_evidence_coverage": 1.0,
+        "complete_evidence_rate": 1
+      },
+      "5": {
+        "mean_evidence_coverage": 1.0,
+        "complete_evidence_rate": 1
+      }
+    },
+    "unsupported_cases_with_matches": 0,
+    "unsupported_no_match_rate": 1
+  },
+  "results": [
+    {
+      "case": {
+        "id": "D01",
+        "kind": "answerable",
+        "question": "What is the standard shipping charge below the free-delivery threshold?",
+        "expected_evidence": [
+          {
+            "titles": [
+              "Demo Store Shipping Policy"
+            ],
+            "contains": [
+              "SAR 25",
+              "below SAR 200"
+            ]
+          }
+        ]
+      },
+      "standalone_question": "What is the standard shipping charge below the free-delivery threshold?",
+      "matches": [
+        {
+          "chunk_id": 9,
+          "title": "Demo Store Shipping Policy",
+          "document_version": 1,
+          "page_number": 1,
+          "text": "Demo Store Shipping Policy\nPolicy version: 1\nFictional information for a course demonstration.\n\nDelivery coverage\nWe ship to Riyadh and other cities within Saudi Arabia.\nInternational shipping is not offered.\n\nShipping cost\nStandard shipping costs SAR 25 when the merchandise subtotal after\ndiscounts is below SAR 200.\nStandard shipping is free when that subtotal is SAR 200 or more.\nThe shipping fee does not count toward the free-shipping threshold.\n\nDelivery estimates\nRiyadh: 2-4 business days after dispatch.\nOther Saudi cities: 3-7 business days after dispatch.\nThese are estimates, not guaranteed delivery dates.\nBusiness days are Sunday through Thursday, excluding public holidays.\n\nDelivery issues\nReport damaged deliveries within 48 hours of receiving the package.\nStaff must review damaged, delayed, or missing deliveries.\nA report does not automatically approve a refund or replacement.\n\nTracking\nThe demonstration assistant cannot access live courier tracking or\nverify the status of a specific order.\nCustomers may include an order reference in a support ticket.",
+          "distance": 0.5993355827468234,
+          "is_txt": true
+        },
+        {
+          "chunk_id": 10,
+          "title": "Demo Store Returns Policy",
+          "document_version": 1,
+          "page_number": 1,
+          "text": "Demo Store Returns Policy\nPolicy version: 1\nFictional information for a course demonstration.\n\nStandard returns\nCustomers may request a return of a non-personalized item within\n14 calendar days of receiving it.\nThe item must be unused and have its original packaging.\nStaff review return requests before approval.\n\nPersonalized items\nPersonalized items are normally excluded from change-of-mind returns.\nDefective or damaged personalized items are an exception requiring\nstaff review. The assistant cannot promise approval.\n\nDamaged deliveries\nReport damage discovered on delivery within 48 hours of receipt.\nUse Request human support and describe the issue.\nInclude an order reference if available.\n\nRefunds and cancellations\nOnly staff can approve or process refunds and cancellations.\nAn exact refund processing time is not specified.\nThe assistant cannot issue refunds, cancel orders, verify payments,\nor confirm that a refund has completed.\n\nUnspecified information\nReturn shipping charges and exchange processing times are not specified.\nRequest human support for these details.",
+          "distance": 0.7361911983704067,
+          "is_txt": true
+        },
+        {
+          "chunk_id": 12,
+          "title": "Demo Store Support Policy",
+          "document_version": 1,
+          "page_number": 1,
+          "text": "Demo Store Support Policy\nPolicy version: 1\nFictional information for a course demonstration.\n\nRoutine questions\nThe assistant answers from documented store information and shows\nsupporting passages.\nIf evidence is missing or conflicting, explain the limitation and\noffer human support.\n\nStaff review\nDamaged deliveries, missing or delayed orders, refunds, replacements,\ncancellations, and requests for a human require staff review.\nThe assistant cannot access live orders or approve these actions.\n\nCreating a ticket\nChoose Request human support.\nProvide an email address or phone number and describe the issue.\nAn order reference is optional.\nReview the details and explicitly confirm.\nA ticket exists only after it is saved and a reference is displayed.\nA chat message alone does not create a ticket.\n\nStatuses\nOpen: saved and awaiting staff handling.\nIn Progress: staff are working on the request.\nResolved: staff marked the request resolved.\nResolved status alone does not prove a refund was paid or a replacement\nwas delivered.\n\nLimitations\nThere is no live agent chat or automatic email notification.\nSupport opening hours and response-time guarantees are not specified.\nCustomers can check My tickets in the browser session used to submit them.",
+          "distance": 0.7689082394048297,
+          "is_txt": true
+        },
+        {
+          "chunk_id": 11,
+          "title": "Demo Store Product Catalog",
+          "document_version": 1,
+          "page_number": 1,
+          "text": "Demo Store Product Catalog\nCatalog version: 1\nFictional information for a course demonstration.\n\nPrices are catalog prices in Saudi riyals, excluding delivery.\nThis document does not provide live stock availability.\n\nLumi Desk Lamp\nProduct code: DEMO-LAMP-01\nPrice: SAR 149\nLED lamp with an adjustable arm and USB-C power input.\nOne fixed brightness level; dimming is not supported.\nNo battery.\nA USB-C cable is included. A wall power adapter is not included.\n\nCanvas Tote Bag\nProduct code: DEMO-TOTE-02\nPrice: SAR 59\nCotton canvas bag, 38 cm wide and 42 cm high.\nCatalog colors: natural beige and black.\nSpot cleaning is recommended.\nThis item is not personalized.\n\nPersonalized Notebook\nProduct code: DEMO-NOTE-03\nPrice: SAR 89\nA5 notebook with 120 lined pages.\nThe cover supports a personalized name of up to 20 characters.\nPersonalized-item return restrictions apply, with defective or damaged\nitems requiring staff review.\n\nUnspecified information\nWarranty periods, live inventory, promotions, and personalization\nproduction times are not specified.\nThe assistant should offer human support instead of inventing them.",
+          "distance": 0.7824912909739095,
+          "is_txt": true
+        }
+      ],
+      "scores": {
+        "1": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        },
+        "3": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        },
+        "5": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        }
+      },
+      "rewrite_ms": 0.0,
+      "retrieval_ms": 1260.47,
+      "latency_ms": 1260.54,
+      "error": null
+    },
+    {
+      "case": {
+        "id": "D02",
+        "kind": "answerable",
+        "question": "What is the estimated delivery time outside Riyadh?",
+        "expected_evidence": [
+          {
+            "titles": [
+              "Demo Store Shipping Policy"
+            ],
+            "contains": [
+              "3-7 business days after dispatch"
+            ]
+          }
+        ]
+      },
+      "standalone_question": "What is the estimated delivery time outside Riyadh?",
+      "matches": [
+        {
+          "chunk_id": 9,
+          "title": "Demo Store Shipping Policy",
+          "document_version": 1,
+          "page_number": 1,
+          "text": "Demo Store Shipping Policy\nPolicy version: 1\nFictional information for a course demonstration.\n\nDelivery coverage\nWe ship to Riyadh and other cities within Saudi Arabia.\nInternational shipping is not offered.\n\nShipping cost\nStandard shipping costs SAR 25 when the merchandise subtotal after\ndiscounts is below SAR 200.\nStandard shipping is free when that subtotal is SAR 200 or more.\nThe shipping fee does not count toward the free-shipping threshold.\n\nDelivery estimates\nRiyadh: 2-4 business days after dispatch.\nOther Saudi cities: 3-7 business days after dispatch.\nThese are estimates, not guaranteed delivery dates.\nBusiness days are Sunday through Thursday, excluding public holidays.\n\nDelivery issues\nReport damaged deliveries within 48 hours of receiving the package.\nStaff must review damaged, delayed, or missing deliveries.\nA report does not automatically approve a refund or replacement.\n\nTracking\nThe demonstration assistant cannot access live courier tracking or\nverify the status of a specific order.\nCustomers may include an order reference in a support ticket.",
+          "distance": 0.4172677572997958,
+          "is_txt": true
+        },
+        {
+          "chunk_id": 11,
+          "title": "Demo Store Product Catalog",
+          "document_version": 1,
+          "page_number": 1,
+          "text": "Demo Store Product Catalog\nCatalog version: 1\nFictional information for a course demonstration.\n\nPrices are catalog prices in Saudi riyals, excluding delivery.\nThis document does not provide live stock availability.\n\nLumi Desk Lamp\nProduct code: DEMO-LAMP-01\nPrice: SAR 149\nLED lamp with an adjustable arm and USB-C power input.\nOne fixed brightness level; dimming is not supported.\nNo battery.\nA USB-C cable is included. A wall power adapter is not included.\n\nCanvas Tote Bag\nProduct code: DEMO-TOTE-02\nPrice: SAR 59\nCotton canvas bag, 38 cm wide and 42 cm high.\nCatalog colors: natural beige and black.\nSpot cleaning is recommended.\nThis item is not personalized.\n\nPersonalized Notebook\nProduct code: DEMO-NOTE-03\nPrice: SAR 89\nA5 notebook with 120 lined pages.\nThe cover supports a personalized name of up to 20 characters.\nPersonalized-item return restrictions apply, with defective or damaged\nitems requiring staff review.\n\nUnspecified information\nWarranty periods, live inventory, promotions, and personalization\nproduction times are not specified.\nThe assistant should offer human support instead of inventing them.",
+          "distance": 0.642020420593781,
+          "is_txt": true
+        },
+        {
+          "chunk_id": 10,
+          "title": "Demo Store Returns Policy",
+          "document_version": 1,
+          "page_number": 1,
+          "text": "Demo Store Returns Policy\nPolicy version: 1\nFictional information for a course demonstration.\n\nStandard returns\nCustomers may request a return of a non-personalized item within\n14 calendar days of receiving it.\nThe item must be unused and have its original packaging.\nStaff review return requests before approval.\n\nPersonalized items\nPersonalized items are normally excluded from change-of-mind returns.\nDefective or damaged personalized items are an exception requiring\nstaff review. The assistant cannot promise approval.\n\nDamaged deliveries\nReport damage discovered on delivery within 48 hours of receipt.\nUse Request human support and describe the issue.\nInclude an order reference if available.\n\nRefunds and cancellations\nOnly staff can approve or process refunds and cancellations.\nAn exact refund processing time is not specified.\nThe assistant cannot issue refunds, cancel orders, verify payments,\nor confirm that a refund has completed.\n\nUnspecified information\nReturn shipping charges and exchange processing times are not specified.\nRequest human support for these details.",
+          "distance": 0.7701109403833931,
+          "is_txt": true
+        }
+      ],
+      "scores": {
+        "1": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        },
+        "3": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        },
+        "5": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        }
+      },
+      "rewrite_ms": 0.0,
+      "retrieval_ms": 507.81,
+      "latency_ms": 507.88,
+      "error": null
+    },
+    {
+      "case": {
+        "id": "D03",
+        "kind": "answerable",
+        "question": "What is the catalog price of the Lumi Desk Lamp?",
+        "expected_evidence": [
+          {
+            "titles": [
+              "Demo Store Product Catalog"
+            ],
+            "contains": [
+              "Price: SAR 149"
+            ]
+          }
+        ]
+      },
+      "standalone_question": "What is the catalog price of the Lumi Desk Lamp?",
+      "matches": [
+        {
+          "chunk_id": 11,
+          "title": "Demo Store Product Catalog",
+          "document_version": 1,
+          "page_number": 1,
+          "text": "Demo Store Product Catalog\nCatalog version: 1\nFictional information for a course demonstration.\n\nPrices are catalog prices in Saudi riyals, excluding delivery.\nThis document does not provide live stock availability.\n\nLumi Desk Lamp\nProduct code: DEMO-LAMP-01\nPrice: SAR 149\nLED lamp with an adjustable arm and USB-C power input.\nOne fixed brightness level; dimming is not supported.\nNo battery.\nA USB-C cable is included. A wall power adapter is not included.\n\nCanvas Tote Bag\nProduct code: DEMO-TOTE-02\nPrice: SAR 59\nCotton canvas bag, 38 cm wide and 42 cm high.\nCatalog colors: natural beige and black.\nSpot cleaning is recommended.\nThis item is not personalized.\n\nPersonalized Notebook\nProduct code: DEMO-NOTE-03\nPrice: SAR 89\nA5 notebook with 120 lined pages.\nThe cover supports a personalized name of up to 20 characters.\nPersonalized-item return restrictions apply, with defective or damaged\nitems requiring staff review.\n\nUnspecified information\nWarranty periods, live inventory, promotions, and personalization\nproduction times are not specified.\nThe assistant should offer human support instead of inventing them.",
+          "distance": 0.47206843107340224,
+          "is_txt": true
+        }
+      ],
+      "scores": {
+        "1": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        },
+        "3": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        },
+        "5": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        }
+      },
+      "rewrite_ms": 0.0,
+      "retrieval_ms": 424.75,
+      "latency_ms": 424.8,
+      "error": null
+    },
+    {
+      "case": {
+        "id": "D04",
+        "kind": "answerable",
+        "question": "How long do I have to request a standard return?",
+        "expected_evidence": [
+          {
+            "titles": [
+              "Demo Store Returns Policy"
+            ],
+            "contains": [
+              "14 calendar days"
+            ]
+          }
+        ]
+      },
+      "standalone_question": "How long do I have to request a standard return?",
+      "matches": [
+        {
+          "chunk_id": 10,
+          "title": "Demo Store Returns Policy",
+          "document_version": 1,
+          "page_number": 1,
+          "text": "Demo Store Returns Policy\nPolicy version: 1\nFictional information for a course demonstration.\n\nStandard returns\nCustomers may request a return of a non-personalized item within\n14 calendar days of receiving it.\nThe item must be unused and have its original packaging.\nStaff review return requests before approval.\n\nPersonalized items\nPersonalized items are normally excluded from change-of-mind returns.\nDefective or damaged personalized items are an exception requiring\nstaff review. The assistant cannot promise approval.\n\nDamaged deliveries\nReport damage discovered on delivery within 48 hours of receipt.\nUse Request human support and describe the issue.\nInclude an order reference if available.\n\nRefunds and cancellations\nOnly staff can approve or process refunds and cancellations.\nAn exact refund processing time is not specified.\nThe assistant cannot issue refunds, cancel orders, verify payments,\nor confirm that a refund has completed.\n\nUnspecified information\nReturn shipping charges and exchange processing times are not specified.\nRequest human support for these details.",
+          "distance": 0.5315619144782346,
+          "is_txt": true
+        },
+        {
+          "chunk_id": 12,
+          "title": "Demo Store Support Policy",
+          "document_version": 1,
+          "page_number": 1,
+          "text": "Demo Store Support Policy\nPolicy version: 1\nFictional information for a course demonstration.\n\nRoutine questions\nThe assistant answers from documented store information and shows\nsupporting passages.\nIf evidence is missing or conflicting, explain the limitation and\noffer human support.\n\nStaff review\nDamaged deliveries, missing or delayed orders, refunds, replacements,\ncancellations, and requests for a human require staff review.\nThe assistant cannot access live orders or approve these actions.\n\nCreating a ticket\nChoose Request human support.\nProvide an email address or phone number and describe the issue.\nAn order reference is optional.\nReview the details and explicitly confirm.\nA ticket exists only after it is saved and a reference is displayed.\nA chat message alone does not create a ticket.\n\nStatuses\nOpen: saved and awaiting staff handling.\nIn Progress: staff are working on the request.\nResolved: staff marked the request resolved.\nResolved status alone does not prove a refund was paid or a replacement\nwas delivered.\n\nLimitations\nThere is no live agent chat or automatic email notification.\nSupport opening hours and response-time guarantees are not specified.\nCustomers can check My tickets in the browser session used to submit them.",
+          "distance": 0.6888784077953971,
+          "is_txt": true
+        },
+        {
+          "chunk_id": 9,
+          "title": "Demo Store Shipping Policy",
+          "document_version": 1,
+          "page_number": 1,
+          "text": "Demo Store Shipping Policy\nPolicy version: 1\nFictional information for a course demonstration.\n\nDelivery coverage\nWe ship to Riyadh and other cities within Saudi Arabia.\nInternational shipping is not offered.\n\nShipping cost\nStandard shipping costs SAR 25 when the merchandise subtotal after\ndiscounts is below SAR 200.\nStandard shipping is free when that subtotal is SAR 200 or more.\nThe shipping fee does not count toward the free-shipping threshold.\n\nDelivery estimates\nRiyadh: 2-4 business days after dispatch.\nOther Saudi cities: 3-7 business days after dispatch.\nThese are estimates, not guaranteed delivery dates.\nBusiness days are Sunday through Thursday, excluding public holidays.\n\nDelivery issues\nReport damaged deliveries within 48 hours of receiving the package.\nStaff must review damaged, delayed, or missing deliveries.\nA report does not automatically approve a refund or replacement.\n\nTracking\nThe demonstration assistant cannot access live courier tracking or\nverify the status of a specific order.\nCustomers may include an order reference in a support ticket.",
+          "distance": 0.7515008181065248,
+          "is_txt": true
+        }
+      ],
+      "scores": {
+        "1": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        },
+        "3": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        },
+        "5": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        }
+      },
+      "rewrite_ms": 0.0,
+      "retrieval_ms": 968.21,
+      "latency_ms": 968.33,
+      "error": null
+    },
+    {
+      "case": {
+        "id": "D05",
+        "kind": "unsupported",
+        "question": "What is the capital city of Canada?",
+        "expected_evidence": []
+      },
+      "standalone_question": "What is the capital city of Canada?",
+      "matches": [],
+      "scores": {
+        "1": {
+          "no_matches": true
+        },
+        "3": {
+          "no_matches": true
+        },
+        "5": {
+          "no_matches": true
+        }
+      },
+      "rewrite_ms": 0.0,
+      "retrieval_ms": 602.32,
+      "latency_ms": 602.35,
+      "error": null
+    },
+    {
+      "case": {
+        "id": "D06",
+        "kind": "unsupported",
+        "question": "How do I solve a quadratic equation?",
+        "expected_evidence": []
+      },
+      "standalone_question": "How do I solve a quadratic equation?",
+      "matches": [],
+      "scores": {
+        "1": {
+          "no_matches": true
+        },
+        "3": {
+          "no_matches": true
+        },
+        "5": {
+          "no_matches": true
+        }
+      },
+      "rewrite_ms": 0.0,
+      "retrieval_ms": 361.99,
+      "latency_ms": 362.01,
+      "error": null
+    },
+    {
+      "case": {
+        "id": "D07",
+        "kind": "followup",
+        "question": "Is a wall adapter included with it?",
+        "history": [
+          {
+            "role": "user",
+            "content": "Tell me about the Lumi Desk Lamp."
+          },
+          {
+            "role": "assistant",
+            "content": "The Lumi Desk Lamp is an LED desk lamp."
+          }
+        ],
+        "expected_standalone_question": "Is a wall power adapter included with the Lumi Desk Lamp?",
+        "expected_evidence": [
+          {
+            "titles": [
+              "Demo Store Product Catalog"
+            ],
+            "contains": [
+              "A wall power adapter is not included"
+            ]
+          }
+        ]
+      },
+      "standalone_question": "Does the Lumi Desk Lamp come with a wall adapter included?",
+      "matches": [
+        {
+          "chunk_id": 11,
+          "title": "Demo Store Product Catalog",
+          "document_version": 1,
+          "page_number": 1,
+          "text": "Demo Store Product Catalog\nCatalog version: 1\nFictional information for a course demonstration.\n\nPrices are catalog prices in Saudi riyals, excluding delivery.\nThis document does not provide live stock availability.\n\nLumi Desk Lamp\nProduct code: DEMO-LAMP-01\nPrice: SAR 149\nLED lamp with an adjustable arm and USB-C power input.\nOne fixed brightness level; dimming is not supported.\nNo battery.\nA USB-C cable is included. A wall power adapter is not included.\n\nCanvas Tote Bag\nProduct code: DEMO-TOTE-02\nPrice: SAR 59\nCotton canvas bag, 38 cm wide and 42 cm high.\nCatalog colors: natural beige and black.\nSpot cleaning is recommended.\nThis item is not personalized.\n\nPersonalized Notebook\nProduct code: DEMO-NOTE-03\nPrice: SAR 89\nA5 notebook with 120 lined pages.\nThe cover supports a personalized name of up to 20 characters.\nPersonalized-item return restrictions apply, with defective or damaged\nitems requiring staff review.\n\nUnspecified information\nWarranty periods, live inventory, promotions, and personalization\nproduction times are not specified.\nThe assistant should offer human support instead of inventing them.",
+          "distance": 0.6505868347985951,
+          "is_txt": true
+        }
+      ],
+      "scores": {
+        "1": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        },
+        "3": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        },
+        "5": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        }
+      },
+      "rewrite_ms": 1446.11,
+      "retrieval_ms": 393.87,
+      "latency_ms": 1840.1,
+      "error": null
+    },
+    {
+      "case": {
+        "id": "D08",
+        "kind": "followup",
+        "question": "Can I return it if I change my mind?",
+        "history": [
+          {
+            "role": "user",
+            "content": "I bought a Personalized Notebook."
+          },
+          {
+            "role": "assistant",
+            "content": "What would you like to know about your Personalized Notebook?"
+          }
+        ],
+        "expected_standalone_question": "Can I return a Personalized Notebook if I change my mind?",
+        "expected_evidence": [
+          {
+            "titles": [
+              "Demo Store Returns Policy"
+            ],
+            "contains": [
+              "Personalized items are normally excluded from change-of-mind returns"
+            ]
+          }
+        ]
+      },
+      "standalone_question": "Can I return the Personalized Notebook if I change my mind?",
+      "matches": [
+        {
+          "chunk_id": 10,
+          "title": "Demo Store Returns Policy",
+          "document_version": 1,
+          "page_number": 1,
+          "text": "Demo Store Returns Policy\nPolicy version: 1\nFictional information for a course demonstration.\n\nStandard returns\nCustomers may request a return of a non-personalized item within\n14 calendar days of receiving it.\nThe item must be unused and have its original packaging.\nStaff review return requests before approval.\n\nPersonalized items\nPersonalized items are normally excluded from change-of-mind returns.\nDefective or damaged personalized items are an exception requiring\nstaff review. The assistant cannot promise approval.\n\nDamaged deliveries\nReport damage discovered on delivery within 48 hours of receipt.\nUse Request human support and describe the issue.\nInclude an order reference if available.\n\nRefunds and cancellations\nOnly staff can approve or process refunds and cancellations.\nAn exact refund processing time is not specified.\nThe assistant cannot issue refunds, cancel orders, verify payments,\nor confirm that a refund has completed.\n\nUnspecified information\nReturn shipping charges and exchange processing times are not specified.\nRequest human support for these details.",
+          "distance": 0.5751901536302068,
+          "is_txt": true
+        },
+        {
+          "chunk_id": 11,
+          "title": "Demo Store Product Catalog",
+          "document_version": 1,
+          "page_number": 1,
+          "text": "Demo Store Product Catalog\nCatalog version: 1\nFictional information for a course demonstration.\n\nPrices are catalog prices in Saudi riyals, excluding delivery.\nThis document does not provide live stock availability.\n\nLumi Desk Lamp\nProduct code: DEMO-LAMP-01\nPrice: SAR 149\nLED lamp with an adjustable arm and USB-C power input.\nOne fixed brightness level; dimming is not supported.\nNo battery.\nA USB-C cable is included. A wall power adapter is not included.\n\nCanvas Tote Bag\nProduct code: DEMO-TOTE-02\nPrice: SAR 59\nCotton canvas bag, 38 cm wide and 42 cm high.\nCatalog colors: natural beige and black.\nSpot cleaning is recommended.\nThis item is not personalized.\n\nPersonalized Notebook\nProduct code: DEMO-NOTE-03\nPrice: SAR 89\nA5 notebook with 120 lined pages.\nThe cover supports a personalized name of up to 20 characters.\nPersonalized-item return restrictions apply, with defective or damaged\nitems requiring staff review.\n\nUnspecified information\nWarranty periods, live inventory, promotions, and personalization\nproduction times are not specified.\nThe assistant should offer human support instead of inventing them.",
+          "distance": 0.685242478897959,
+          "is_txt": true
+        },
+        {
+          "chunk_id": 12,
+          "title": "Demo Store Support Policy",
+          "document_version": 1,
+          "page_number": 1,
+          "text": "Demo Store Support Policy\nPolicy version: 1\nFictional information for a course demonstration.\n\nRoutine questions\nThe assistant answers from documented store information and shows\nsupporting passages.\nIf evidence is missing or conflicting, explain the limitation and\noffer human support.\n\nStaff review\nDamaged deliveries, missing or delayed orders, refunds, replacements,\ncancellations, and requests for a human require staff review.\nThe assistant cannot access live orders or approve these actions.\n\nCreating a ticket\nChoose Request human support.\nProvide an email address or phone number and describe the issue.\nAn order reference is optional.\nReview the details and explicitly confirm.\nA ticket exists only after it is saved and a reference is displayed.\nA chat message alone does not create a ticket.\n\nStatuses\nOpen: saved and awaiting staff handling.\nIn Progress: staff are working on the request.\nResolved: staff marked the request resolved.\nResolved status alone does not prove a refund was paid or a replacement\nwas delivered.\n\nLimitations\nThere is no live agent chat or automatic email notification.\nSupport opening hours and response-time guarantees are not specified.\nCustomers can check My tickets in the browser session used to submit them.",
+          "distance": 0.7564895742349818,
+          "is_txt": true
+        }
+      ],
+      "scores": {
+        "1": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        },
+        "3": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        },
+        "5": {
+          "evidence_groups_found": 1,
+          "evidence_groups_expected": 1,
+          "evidence_coverage": 1.0,
+          "complete_evidence": true
+        }
+      },
+      "rewrite_ms": 2110.0,
+      "retrieval_ms": 396.68,
+      "latency_ms": 2506.78,
+      "error": null
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+from django.conf import settings
 from pgvector.django import CosineDistance
 
 from support.ai.embeddings import embed_question
@@ -19,7 +20,12 @@ def search_knowledge_base(question, limit=5):
     matches = (
         eligible_chunks
         .select_related("document")
-        .annotate(distance=CosineDistance("embedding", query_vector))
+        .annotate(
+            distance=CosineDistance("embedding", query_vector)
+        )
+        .filter(
+            distance__lte=settings.RETRIEVAL_MAX_DISTANCE
+        )
         .order_by("distance", "pk")[:limit]
     )
 

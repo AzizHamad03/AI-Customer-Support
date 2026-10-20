@@ -96,6 +96,7 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
+    "NUM_PROXIES": 0,
     "DEFAULT_THROTTLE_RATES": {
         "chat_anon": "10/min",
         "chat_user": "30/min",
@@ -105,4 +106,17 @@ REST_FRAMEWORK = {
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 EMBEDDING_MODEL = "text-embedding-3-small"
 CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-4.1-mini")
+try:
+    RETRIEVAL_MAX_DISTANCE = float(
+        os.getenv("RETRIEVAL_MAX_DISTANCE", "0.80")
+    )
+except ValueError as exc:
+    raise ImproperlyConfigured(
+        "RETRIEVAL_MAX_DISTANCE must be a number between 0 and 2."
+    ) from exc
+
+if not 0 <= RETRIEVAL_MAX_DISTANCE <= 2:
+    raise ImproperlyConfigured(
+        "RETRIEVAL_MAX_DISTANCE must be between 0 and 2."
+    )
 LOGOUT_REDIRECT_URL = "support:home"

@@ -26,6 +26,7 @@ update ticket statuses through an authenticated dashboard.
 
 - PDF/TXT upload, validation, text extraction, chunking, and indexing.
 - PostgreSQL/pgvector retrieval from active, successfully indexed documents.
+- Configurable cosine-distance filtering to exclude weak retrieval matches.
 - English customer chat with bounded follow-up context.
 - Persistent messages and citation evidence.
 - Ticket validation, review, explicit confirmation, and duplicate prevention.
@@ -47,6 +48,9 @@ update ticket statuses through an authenticated dashboard.
 - The old document remains available until replacement indexing succeeds.
 - Staff-only document deletion with explicit confirmation, removal of search
   data, and preservation of historical citation text.
+- Separate development and evaluation datasets for retrieval.
+- An evaluation runner that records evidence coverage, retrieved passages,
+  distances, timings, errors, and configuration fingerprints.
 
 A single assistant selects the knowledge-search tool through a bounded
 tool-calling loop. Tool selection allows up to three model turns and two
@@ -251,6 +255,10 @@ working credentials.
 | DB_PORT | Database port; defaults to 5432 |
 | OPENAI_API_KEY | Required for embeddings and live AI answers |
 | CHAT_MODEL | Chat model; defaults to gpt-4.1-mini |
+| RETRIEVAL_MAX_DISTANCE | Maximum accepted cosine distance; defaults to 0.80 |
+
+`RETRIEVAL_MAX_DISTANCE` must be a number between 0 and 2, inclusive.
+Lower values make retrieval stricter.
 
 The embedding model is configured in `config/settings.py` as
 `text-embedding-3-small` with 1536 dimensions. Changing the embedding model
@@ -301,8 +309,19 @@ API credit. A ChatGPT subscription is separate from API billing.
 5. Open Customer chat and ask a sample question.
 6. Expand the answer's source to inspect the supporting passage.
 
-See `sample_data/README.md` for titles, categories, questions, and replacement
-testing. Sample documents are not automatically loaded by migrations.
+Use these titles and categories:
+
+| File | Document title | Category |
+| --- | --- | --- |
+| shipping_policy.txt | Demo Store Shipping Policy | Shipping |
+| returns_policy.txt | Demo Store Returns Policy | Returns |
+| product_catalog.txt | Demo Store Product Catalog | Products |
+| support_policy.txt | Demo Store Support Policy | General |
+
+Reuse existing matching documents rather than uploading duplicates.
+
+See `sample_data/README.md` for sample questions and replacement testing.
+Sample documents are not automatically loaded by migrations.
 
 ## Customer accounts and saved conversations
 
@@ -377,6 +396,13 @@ Only `POST /api/chat/` requests consume the chat sending allowance.
 Guest browsers sharing an IP address share the guest allowance.
 A registered account shares its allowance across browsers and devices.
 
+For the current direct-server setup, DRF's `NUM_PROXIES` is set to `0`.
+Guest throttling uses `REMOTE_ADDR` and ignores `X-Forwarded-For` when
+identifying the client.
+
+If the application is later deployed behind a reverse proxy, review the
+proxy configuration and client-IP handling before changing `NUM_PROXIES`.
+
 When the allowance is exhausted, the API returns HTTP 429 with a `detail`
 message and a `Retry-After` header. Rejected requests do not reach the chat
 service or trigger AI calls.
@@ -439,20 +465,20 @@ rather than separate REST APIs. Relevant routes include:
 
 | Route | Method | Purpose |
 | --- | --- | --- |
-| /accounts/signup/ | GET, POST | Customer registration |
-| /accounts/login/ | GET, POST | Customer/staff login |
-| /accounts/logout/ | POST | Logout |
-| /conversations/ | GET | Registered customer's conversation list |
-| /conversations/new/ | POST | Create and select an account-owned conversation |
-| /conversations/\<id\>/open/ | POST | Select an owned conversation |
-| /support/request/ | GET, POST | Prepare a support-ticket draft |
-| /support/confirm/ | GET, POST | Review and confirm ticket creation |
-| /support/tickets/ | GET | Customer's accessible tickets |
-| /support/tickets/\<id\>/ | GET | View an accessible customer ticket |
-| /staff/ | GET | Staff dashboard |
-| /staff/documents/\<id\>/delete/ | GET, POST | Staff deletion review and confirmation |
-| /staff/tickets/ | GET | Search and filter staff tickets |
-| /staff/tickets/\<id\>/ | GET, POST | Review a ticket and update its status |
+| `/accounts/signup/` | GET, POST | Customer registration |
+| `/accounts/login/` | GET, POST | Customer/staff login |
+| `/accounts/logout/` | POST | Logout |
+| `/conversations/` | GET | Registered customer's conversation list |
+| `/conversations/new/` | POST | Create and select an account-owned conversation |
+| `/conversations/<id>/open/` | POST | Select an owned conversation |
+| `/support/request/` | GET, POST | Prepare a support-ticket draft |
+| `/support/confirm/` | GET, POST | Review and confirm ticket creation |
+| `/support/tickets/` | GET | Customer's accessible tickets |
+| `/support/tickets/<id>/` | GET | View an accessible customer ticket |
+| `/staff/` | GET | Staff dashboard |
+| `/staff/documents/<id>/delete/` | GET, POST | Staff deletion review and confirmation |
+| `/staff/tickets/` | GET | Search and filter staff tickets |
+| `/staff/tickets/<id>/` | GET, POST | Review a ticket and update its status |
 
 State-changing forms include CSRF tokens. Conversation routes require login;
 staff routes require staff membership.
@@ -475,14 +501,17 @@ belonging to their current session.
 | support/models/ | Separate domain models |
 | support/views/ | Pages and API request handling |
 | support/api/ | Serializer, session/CSRF authentication, and chat throttles |
-| support/services/ | Accounts, conversations, documents, retrieval, chat, and ticket rules |
+| support/services/ | Accounts, conversations, documents, retrieval, chat, tickets, and retrieval evaluation |
 | support/ai/ | Embeddings, bounded search agent, search tool, rewriting, structured answers, and prompt loader |
 | support/ai/prompts/ | Markdown prompts for tool selection, question rewriting, and grounded answers |
+| support/management/commands/ | Retrieval evaluation management command |
 | support/migrations/ | Database schema and vector migration |
-| support/tests/ | Functional, permission, reliability, and throttling checks |
+| support/tests/ | Functional, permission, reliability, throttling, retrieval, and evaluation-scoring checks |
 | templates/ | Customer and staff pages |
 | static/ | Stylesheet and browser chat code |
 | sample_data/ | Public fictional demonstration documents |
+| evaluation/ | Development and evaluation datasets |
+| evaluation/results/ | Timestamped retrieval evaluation reports |
 | media/ | Runtime uploads, excluded from Git |
 
 The prompt files are:
@@ -535,6 +564,12 @@ To run the throttle and ticket-view checks separately:
 python manage.py test support.tests.test_chat_throttling support.tests.test_ticket_view_rules --keepdb --settings=config.test_settings
 ```
 
+To run retrieval filtering and evaluation-scoring checks:
+
+```bash
+python manage.py test support.tests.test_retrieval_threshold support.tests.test_retrieval_evaluation --keepdb --settings=config.test_settings
+```
+
 Run the application normally with:
 
 ```bash
@@ -549,14 +584,29 @@ confirmation, duplicate prevention, concurrent ticket confirmation,
 registration/login, guest-history transfer, account ownership, staff
 permissions, conversation selection, and stale-tab requests.
 
-Additional checks cover guest and account chat limits, shared IP/account
-allowances, allowance expiry, history access after throttling, ticket HTTP
-method restrictions, and application-login redirects without loops.
+Additional checks cover:
 
-AI requests are mocked. Tests do not require an API key and do not measure
-live model quality, latency, or memory. Invalid-PDF and simulated AI-failure
-logs can appear during successful failure-path tests; use the final test result
-and traceback output to identify actual failures.
+- Guest and account chat limits.
+- Shared IP/account allowances and allowance expiry.
+- Forwarded-header handling for guest throttling.
+- History access after throttling.
+- Ticket HTTP method restrictions.
+- Application-login redirects without loops.
+- Relevant and weak retrieval matches.
+- Inclusive distance-threshold boundaries.
+- Chat fallback when all retrieved evidence is filtered out.
+- Evaluation scoring and follow-up rewriting integration.
+
+External AI requests are mocked in the automated tests.
+The retrieval-threshold tests use synthetic vectors with real PostgreSQL/pgvector
+distance calculations. Tests do not require an API key.
+
+The live evaluation command is separate from the automated test suite and
+does make API calls.
+
+Invalid-PDF and simulated AI-failure logs can appear during successful
+failure-path tests; use the final test result and traceback output to identify
+actual failures.
 
 Before committing, also check:
 
@@ -571,16 +621,20 @@ With the server running and sample documents indexed:
 
 1. Ask a shipping question and inspect the supporting citation.
 2. Ask a follow-up question and confirm the context is interpreted correctly.
-3. Send "Create a ticket. Yes, I confirm." in chat and verify that no ticket
+3. Ask an unrelated question such as "How do I solve a quadratic equation?"
+   and check the safe fallback when no evidence passes the cutoff.
+4. Use the staff knowledge-search page with an unrelated question and check
+   the no-relevant-passages message.
+5. Send "Create a ticket. Yes, I confirm." in chat and verify that no ticket
    is created.
-4. Open Request human support, complete the form, and review the saved draft.
-5. Confirm the ticket and check its reference under My tickets.
-6. Repeat confirmation of the same draft and verify that no duplicate appears.
-7. Log in as staff, review the linked conversation, and update the ticket status.
-8. Open Staff workspace as a guest and verify redirection to the application
-   login page.
-9. Open Staff workspace as an ordinary customer and verify that the login form
-   appears without a redirect loop.
+6. Open Request human support, complete the form, and review the saved draft.
+7. Confirm the ticket and check its reference under My tickets.
+8. Repeat confirmation of the same draft and verify that no duplicate appears.
+9. Log in as staff, review the linked conversation, and update the ticket status.
+10. Open Staff workspace as a guest and verify redirection to the application
+    login page.
+11. Open Staff workspace as an ordinary customer and verify that the login form
+    appears without a redirect loop.
 
 The dedicated automated throttle tests verify rate limits without paid AI calls.
 
@@ -594,6 +648,9 @@ The dedicated automated throttle tests verify rate limits without paid AI calls.
 | vector.control missing | Server extension is installed for the running PostgreSQL version |
 | Permission denied creating vector | Administrator enabled vector in the application/test database |
 | No searchable documents | Documents are indexed, Ready, and Active |
+| No relevant passages found | The question may be unsupported or all matches may exceed the distance cutoff |
+| Expected policy answer falls back | Check active document content and retrieval distances; use development cases to assess the cutoff |
+| Invalid retrieval threshold | RETRIEVAL_MAX_DISTANCE must be a number between 0 and 2 |
 | API error | Key, billing, model access, and network; restart after editing .env |
 | Empty/scanned file fails | Use non-empty UTF-8 TXT or text-based PDF |
 | Conversation changed / HTTP 409 | Review reloaded history before resending; another tab or request may have changed it |
@@ -604,31 +661,174 @@ The dedicated automated throttle tests verify rate limits without paid AI calls.
 | Customer cannot access staff workspace | Expected; use an account with staff membership |
 | Cannot delete a document | Check for referencing replacement versions |
 | Earlier chat not currently visible | Open My conversations and select it; guests need their original session |
+| Evaluation rejects the knowledge base | Use exactly the four active, Ready, version-1 sample documents with the required titles and content |
+| Evaluation reports errors | Inspect the saved per-case errors and resolve them before treating the run as complete |
+| Evaluation corpus changed | Keep documents unchanged during the run and repeat it |
+
+## Retrieval relevance filtering
+
+Retrieval searches active, Ready documents with saved embeddings.
+Only chunks with cosine distance less than or equal to
+`RETRIEVAL_MAX_DISTANCE` are returned.
+
+The default cutoff is `0.80`. It was selected using the development baseline:
+the largest required first-match distance was approximately `0.651`, while
+the smallest unsupported first-match distance was approximately `0.943`.
+Their midpoint is approximately `0.797`, rounded to `0.80`.
+
+Lower values make retrieval stricter. Cosine distance is not a probability
+or an answer-confidence score.
+
+When no passage passes the cutoff, the existing chat fallback is used
+without grounded-answer generation. Retrieved passages still pass through
+the existing answer-grounding and citation checks.
+
+The cutoff is calibrated for the current demonstration documents and
+embedding setup. Re-evaluate it when changing documents, chunking,
+or embedding models.
+
+Changing the cutoff does not require document reindexing.
+Restart the application after changing its environment configuration.
 
 ## Evaluation and remaining work
 
-Performance evaluation is not yet completed.
+A retrieval evaluation dataset and runner are included.
 
-The proposed evaluation includes 25 answerable questions, 10 unsupported
-questions, 10 escalation workflows, and 5 multi-turn conversations, with
-separate development examples.
+- Development set: 8 cases, comprising 4 answerable questions,
+  2 unsupported questions, and 2 follow-ups.
+- Evaluation set: 20 cases, comprising 12 answerable questions,
+  4 unsupported questions, and 4 follow-ups.
+- Labels identify acceptable source documents and required evidence phrases.
+- Follow-up cases include reference standalone questions for manual inspection.
 
-The report will cover retrieval and answer quality, groundedness, ticket
-success, latency, local backend memory, and a no-RAG comparison.
+The dataset files are:
 
-The fixed evaluation dataset, evaluation runner, measurement/scoring scripts,
-and recorded evaluation results are not included in this version. Sample
-questions are development/demo examples. Remaining deliverables include the
-performance evaluation document and final presentation.
+- `evaluation/retrieval_dev.json`
+- `evaluation/retrieval_eval.json`
+
+### Running the evaluation
+
+The runner requires exactly four active, Ready, version-1 sample documents,
+using the titles listed in `sample_data/README.md`. It checks their extracted
+text against the files in `sample_data/policies/` before making AI calls.
+
+Other Ready documents must be inactive for this benchmark.
+Do not upload duplicate sample documents or use the version-2 shipping
+replacement for these version-1 labels.
+
+Run the development evaluation with the current cutoff:
+
+```bash
+python manage.py evaluate_retrieval --split dev --label threshold_0_8
+```
+
+After reviewing development results, evaluate the fixed configuration:
+
+```bash
+python manage.py evaluate_retrieval --split eval --label threshold_0_8
+```
+
+These commands use the configured embedding API. Follow-up cases also use
+the chat model to rewrite questions. The web server does not need to be running.
+
+The `--label` argument names the run; it does not change retrieval behavior.
+The actual cutoff comes from `RETRIEVAL_MAX_DISTANCE`.
+
+Each run saves a new timestamped JSON report under `evaluation/results/`.
+Reports contain:
+
+- Original questions and expected evidence labels.
+- Actual standalone questions used for retrieval.
+- Retrieved passages, document versions, and cosine distances.
+- Evidence coverage at the top 1, 3, and 5 matches.
+- Unsupported-query retrieval counts.
+- Rewriting, retrieval, and combined timings.
+- Per-case errors.
+- The configured retrieval cutoff.
+- Model names and fingerprints of the dataset, knowledge base, embeddings,
+  retrieval code, and rewriting prompt.
+
+Knowledge-base changes during a run invalidate that report.
+Resolve any recorded errors before using a report as a complete result.
+
+Use development cases for tuning. Keep evaluation labels fixed and use the
+evaluation set to assess changes after development decisions are made.
+
+### Recorded retrieval results
+
+The following runs were recorded on 20 October 2026.
+The original baselines were collected before distance filtering was introduced.
+The filtered runs used the fixed cutoff of `0.80`.
+
+| Run | Cases completed | Required evidence in first match | Unsupported questions returning passages | Technical errors |
+| --- | --- | --- | --- | --- |
+| Development baseline | 8/8 | 6/6 | 2/2 | 0 |
+| Development with cutoff 0.80 | 8/8 | 6/6 | 0/2 | 0 |
+| Evaluation baseline | 20/20 | 16/16 | 4/4 | 0 |
+| Evaluation with cutoff 0.80 | 20/20 | 16/16 | 0/4 | 0 |
+
+The filtered evaluation retained all required first-match evidence and
+returned no passages for the four unsupported questions.
+
+The dataset and knowledge-base fingerprints matched between the corresponding
+baseline and filtered runs. The knowledge base remained unchanged during
+each run.
+
+The report files are:
+
+- `evaluation/results/dev_baseline_20261020T133429500504Z.json`
+- `evaluation/results/eval_baseline_20261020T133513590862Z.json`
+- `evaluation/results/dev_threshold_0_8_20261020T134848856794Z.json`
+- `evaluation/results/eval_threshold_0_8_20261020T135146093948Z.json`
+
+Keep the original baseline reports unchanged.
+Naming a new run `baseline` does not disable the current filter.
+
+### Evaluation limitations
+
+This is a small retrieval benchmark over four short demonstration documents.
+Evidence matching uses document titles and normalized text phrases.
+A high top-5 score alone is not strong evidence of retrieval quality because
+the knowledge base contains only four documents.
+
+The recorded results demonstrate retrieval behavior on these cases.
+They do not establish overall chatbot accuracy or general performance across
+other stores and larger knowledge bases.
+
+The unsupported questions are clearly outside the store's domain.
+Harder unsupported questions that use store-related vocabulary are needed
+to assess filtering more thoroughly.
+
+Follow-up reference questions are retained for inspection. Retrieval uses
+the actual model-generated rewrite rather than the reference wording.
+
+The runner evaluates direct vector retrieval and follow-up rewriting.
+It does not evaluate agent tool selection, generated-answer correctness,
+groundedness, ticket workflows, or full end-to-end chat latency.
+It does not create customer conversations, messages, or tickets.
+
+Reported timings are observations from individual runs and are not sufficient
+to establish a reliable speed improvement or regression.
+
+### Remaining work
+
+The broader proposed evaluation includes 25 answerable questions,
+10 unsupported questions, 10 escalation workflows, and 5 multi-turn
+conversations, with separate development examples.
+
+The broader performance report will cover retrieval and answer quality,
+groundedness, ticket success, latency, local backend memory, and a no-RAG
+comparison. That evaluation, its performance report, and the final
+presentation remain separate deliverables.
 
 Possible later improvements include:
 
 - Moving document processing to a background job.
 - Moving embedding API calls outside document-indexing transactions.
 - Adding an overall chat-request time budget.
-- Building a labeled retrieval evaluation set.
-- Using measured evaluation results to tune retrieval and select a relevance
-  threshold for weak matches.
+- Expanding development coverage to include harder unsupported questions
+  that use store-related vocabulary.
+- Recalibrating retrieval filtering as the knowledge base grows.
 
 Current document indexing runs synchronously, and long conversation histories
 are loaded in full.

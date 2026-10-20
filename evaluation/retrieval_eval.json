@@ -1,0 +1,249 @@
+[
+  {
+    "id": "E01",
+    "kind": "answerable",
+    "question": "My merchandise subtotal after discounts is SAR 180. What is the shipping fee?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Shipping Policy"],
+        "contains": ["SAR 25", "below SAR 200"]
+      }
+    ]
+  },
+  {
+    "id": "E02",
+    "kind": "answerable",
+    "question": "Does a merchandise subtotal of exactly SAR 200 qualify for free delivery?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Shipping Policy"],
+        "contains": ["free", "SAR 200 or more"]
+      }
+    ]
+  },
+  {
+    "id": "E03",
+    "kind": "answerable",
+    "question": "How many business days should delivery take to Riyadh after dispatch?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Shipping Policy"],
+        "contains": ["2-4 business days after dispatch"]
+      }
+    ]
+  },
+  {
+    "id": "E04",
+    "kind": "answerable",
+    "question": "Can the store deliver an order internationally?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Shipping Policy"],
+        "contains": ["International shipping is not offered"]
+      }
+    ]
+  },
+  {
+    "id": "E05",
+    "kind": "answerable",
+    "question": "Does the delivery charge count towards free-shipping eligibility?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Shipping Policy"],
+        "contains": ["shipping fee does not count toward the free-shipping threshold"]
+      }
+    ]
+  },
+  {
+    "id": "E06",
+    "kind": "answerable",
+    "question": "Can I return an unused non-personalized item without its original packaging?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Returns Policy"],
+        "contains": ["unused", "original packaging"]
+      }
+    ]
+  },
+  {
+    "id": "E07",
+    "kind": "answerable",
+    "question": "Can a defective personalized product be considered for return?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Returns Policy"],
+        "contains": ["Defective or damaged personalized items are an exception requiring staff review"]
+      }
+    ]
+  },
+  {
+    "id": "E08",
+    "kind": "answerable",
+    "question": "What is the deadline for reporting damage found when my parcel arrives?",
+    "expected_evidence": [
+      {
+        "titles": [
+          "Demo Store Shipping Policy",
+          "Demo Store Returns Policy"
+        ],
+        "contains": ["48 hours"]
+      }
+    ]
+  },
+  {
+    "id": "E09",
+    "kind": "answerable",
+    "question": "How many days does refund processing take?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Returns Policy"],
+        "contains": ["An exact refund processing time is not specified"]
+      }
+    ]
+  },
+  {
+    "id": "E10",
+    "kind": "answerable",
+    "question": "Does the Lumi lamp have adjustable brightness?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Product Catalog"],
+        "contains": ["dimming is not supported"]
+      }
+    ]
+  },
+  {
+    "id": "E11",
+    "kind": "answerable",
+    "question": "What are the dimensions of the Canvas Tote Bag?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Product Catalog"],
+        "contains": ["38 cm wide and 42 cm high"]
+      }
+    ]
+  },
+  {
+    "id": "E12",
+    "kind": "answerable",
+    "question": "What contact information is needed to submit a support request?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Support Policy"],
+        "contains": ["Provide an email address or phone number"]
+      }
+    ]
+  },
+  {
+    "id": "E13",
+    "kind": "unsupported",
+    "question": "Who won the 2018 football World Cup?",
+    "expected_evidence": []
+  },
+  {
+    "id": "E14",
+    "kind": "unsupported",
+    "question": "What temperature should I use to bake a chocolate cake?",
+    "expected_evidence": []
+  },
+  {
+    "id": "E15",
+    "kind": "unsupported",
+    "question": "Explain how to calculate the determinant of a matrix.",
+    "expected_evidence": []
+  },
+  {
+    "id": "E16",
+    "kind": "unsupported",
+    "question": "What is the orbital period of Mars?",
+    "expected_evidence": []
+  },
+  {
+    "id": "E17",
+    "kind": "followup",
+    "question": "What about delivery to Dammam?",
+    "history": [
+      {
+        "role": "user",
+        "content": "What is the delivery estimate for Riyadh?"
+      },
+      {
+        "role": "assistant",
+        "content": "Riyadh delivery is estimated at 2-4 business days after dispatch."
+      }
+    ],
+    "expected_standalone_question": "What is the delivery estimate for Dammam?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Shipping Policy"],
+        "contains": ["3-7 business days after dispatch"]
+      }
+    ]
+  },
+  {
+    "id": "E18",
+    "kind": "followup",
+    "question": "Does it need a battery?",
+    "history": [
+      {
+        "role": "user",
+        "content": "I am interested in the Lumi Desk Lamp."
+      },
+      {
+        "role": "assistant",
+        "content": "What would you like to know about the Lumi Desk Lamp?"
+      }
+    ],
+    "expected_standalone_question": "Does the Lumi Desk Lamp need a battery?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Product Catalog"],
+        "contains": ["No battery"]
+      }
+    ]
+  },
+  {
+    "id": "E19",
+    "kind": "followup",
+    "question": "What is the maximum length for that name?",
+    "history": [
+      {
+        "role": "user",
+        "content": "Can I put my name on the Personalized Notebook?"
+      },
+      {
+        "role": "assistant",
+        "content": "The Personalized Notebook cover supports a personalized name."
+      }
+    ],
+    "expected_standalone_question": "What is the maximum personalized name length for the Personalized Notebook?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Product Catalog"],
+        "contains": ["up to 20 characters"]
+      }
+    ]
+  },
+  {
+    "id": "E20",
+    "kind": "followup",
+    "question": "Does that mean my refund has been paid?",
+    "history": [
+      {
+        "role": "user",
+        "content": "My support ticket is marked Resolved."
+      },
+      {
+        "role": "assistant",
+        "content": "Resolved means staff marked the request resolved."
+      }
+    ],
+    "expected_standalone_question": "Does a Resolved support ticket status mean my refund has been paid?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Support Policy"],
+        "contains": ["Resolved status alone does not prove a refund was paid"]
+      }
+    ]
+  }
+]

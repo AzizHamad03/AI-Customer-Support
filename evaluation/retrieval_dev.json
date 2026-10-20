@@ -1,0 +1,102 @@
+[
+  {
+    "id": "D01",
+    "kind": "answerable",
+    "question": "What is the standard shipping charge below the free-delivery threshold?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Shipping Policy"],
+        "contains": ["SAR 25", "below SAR 200"]
+      }
+    ]
+  },
+  {
+    "id": "D02",
+    "kind": "answerable",
+    "question": "What is the estimated delivery time outside Riyadh?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Shipping Policy"],
+        "contains": ["3-7 business days after dispatch"]
+      }
+    ]
+  },
+  {
+    "id": "D03",
+    "kind": "answerable",
+    "question": "What is the catalog price of the Lumi Desk Lamp?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Product Catalog"],
+        "contains": ["Price: SAR 149"]
+      }
+    ]
+  },
+  {
+    "id": "D04",
+    "kind": "answerable",
+    "question": "How long do I have to request a standard return?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Returns Policy"],
+        "contains": ["14 calendar days"]
+      }
+    ]
+  },
+  {
+    "id": "D05",
+    "kind": "unsupported",
+    "question": "What is the capital city of Canada?",
+    "expected_evidence": []
+  },
+  {
+    "id": "D06",
+    "kind": "unsupported",
+    "question": "How do I solve a quadratic equation?",
+    "expected_evidence": []
+  },
+  {
+    "id": "D07",
+    "kind": "followup",
+    "question": "Is a wall adapter included with it?",
+    "history": [
+      {
+        "role": "user",
+        "content": "Tell me about the Lumi Desk Lamp."
+      },
+      {
+        "role": "assistant",
+        "content": "The Lumi Desk Lamp is an LED desk lamp."
+      }
+    ],
+    "expected_standalone_question": "Is a wall power adapter included with the Lumi Desk Lamp?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Product Catalog"],
+        "contains": ["A wall power adapter is not included"]
+      }
+    ]
+  },
+  {
+    "id": "D08",
+    "kind": "followup",
+    "question": "Can I return it if I change my mind?",
+    "history": [
+      {
+        "role": "user",
+        "content": "I bought a Personalized Notebook."
+      },
+      {
+        "role": "assistant",
+        "content": "What would you like to know about your Personalized Notebook?"
+      }
+    ],
+    "expected_standalone_question": "Can I return a Personalized Notebook if I change my mind?",
+    "expected_evidence": [
+      {
+        "titles": ["Demo Store Returns Policy"],
+        "contains": ["Personalized items are normally excluded from change-of-mind returns"]
+      }
+    ]
+  }
+]

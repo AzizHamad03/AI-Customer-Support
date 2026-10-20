@@ -47,8 +47,12 @@
     {% else %}
         <section class="panel">
             <p>
-                No searchable documents are available.
-                Prepare chunks and generate embeddings for an active document.
+                No relevant passages were found within the retrieval
+                relevance threshold.
+            </p>
+            <p>
+                Try a more specific question. If you expected a match,
+                check that the relevant document is Ready and active.
             </p>
         </section>
     {% endif %}

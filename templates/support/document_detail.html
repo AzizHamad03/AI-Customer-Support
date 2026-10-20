@@ -65,43 +65,80 @@
 <section class="panel">
     <h2>Document processing</h2>
 
-    {% if document.status == "pending" %}
-        <p>This document is uploaded and waiting for text extraction.</p>
+    {% if processing_job %}
+        <p>
+            Job status:
+            <strong>{{ processing_job.get_status_display }}</strong>
+            · Attempts: {{ processing_job.attempts }}
+        </p>
+    {% endif %}
+
+    {% if processing_busy %}
+        {% if processing_job.status == "queued" %}
+            <p>Waiting for background processing.</p>
+        {% else %}
+            <p>
+                The document is being prepared for chat.
+                This may take a little time.
+            </p>
+        {% endif %}
+
+        <p role="status">
+            You can leave this page.
+            While it is open, it refreshes automatically.
+        </p>
+
+    {% elif document.status == "ready" %}
+        <p>This document has been indexed for the assistant.</p>
+
+    {% elif processing_job.status == "failed" %}
+        <p class="processing-error">
+            {{ processing_job.error }}
+        </p>
+        <p>Use Retry processing to try again.</p>
+
+    {% elif document.status == "failed" %}
+        <p class="processing-error">
+            {{ document.processing_error }}
+        </p>
+
     {% elif document.status == "extracted" %}
         <p>
             Text has been extracted from
             {{ document.extracted_pages|length }} page(s),
             containing {{ character_count }} characters.
         </p>
-        <p>
-            Click Process document to make this document ready for chat.
-            If indexing failed, the same button retries it.
-        </p>
-    {% elif document.status == "failed" %}
-        <p class="processing-error">{{ document.processing_error }}</p>
-    {% elif document.status == "ready" %}
-        <p>This document has been indexed for the assistant.</p>
-    {% endif %}
 
-    {% if document.processing_error and document.status == "extracted" %}
-        <p class="processing-error">
-            Indexing failed: {{ document.processing_error }}
-        </p>
+        {% if document.processing_error %}
+            <p class="processing-error">
+                {{ document.processing_error }}
+            </p>
+        {% endif %}
+
+        <p>Process the document to complete indexing.</p>
+
+    {% else %}
+        <p>This document is uploaded and waiting for processing.</p>
     {% endif %}
 
     <div class="actions">
-        {% if document.status != "ready" %}
+        {% if document.status != "ready" and not processing_busy %}
             <form method="post"
                   data-processing-form
                   action="{% url 'support:document_process' document.pk %}">
                 {% csrf_token %}
 
                 <button class="button" type="submit">
-                    Process document
+                    {% if processing_job.status == "failed" %}
+                        Retry processing
+                    {% else %}
+                        Process document
+                    {% endif %}
                 </button>
 
                 <p class="helptext">
-                    Keep this page open while the document is prepared.
+                    Processing continues in the background.
+                    You do not need to keep this page open.
                 </p>
             </form>
         {% endif %}
@@ -229,7 +266,15 @@ const processingForm = document.querySelector("[data-processing-form]");
 processingForm?.addEventListener("submit", () => {
     const button = processingForm.querySelector("button");
     button.disabled = true;
-    button.textContent = "Processing…";
+    button.textContent = "Queueing…";
 });
 </script>
+
+{% if processing_busy %}
+<script>
+window.setTimeout(() => {
+    window.location.reload();
+}, 3000);
+</script>
+{% endif %}
 {% endblock %}

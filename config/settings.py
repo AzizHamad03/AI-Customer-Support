@@ -120,3 +120,6 @@ if not 0 <= RETRIEVAL_MAX_DISTANCE <= 2:
         "RETRIEVAL_MAX_DISTANCE must be between 0 and 2."
     )
 LOGOUT_REDIRECT_URL = "support:home"
+
+# An interrupted processing attempt can be reclaimed after 15 minutes.
+DOCUMENT_JOB_LEASE_SECONDS = 900

@@ -8,16 +8,30 @@ from support.services.document_processing import (
     process_document,
 )
 from support.services.indexing import index_document
+from support.services.processing_jobs import lock_processing_job
 
 
-def process_and_index_document(document_id):
-    extraction_error = None
-
-    # Protect local preparation from overlapping submissions.
+def save_indexing_error(document_id, error, job_run):
     with transaction.atomic():
         document = KnowledgeDocument.objects.select_for_update().get(
             pk=document_id
         )
+        lock_processing_job(document.pk, job_run)
+
+        if document.status == KnowledgeDocument.Status.EXTRACTED:
+            document.processing_error = str(error)
+            document.save(update_fields=["processing_error"])
+
+
+def process_and_index_document(document_id, *, job_run=None):
+    extraction_error = None
+
+    # Local extraction/chunk preparation is serialized per document.
+    with transaction.atomic():
+        document = KnowledgeDocument.objects.select_for_update().get(
+            pk=document_id
+        )
+        lock_processing_job(document.pk, job_run)
 
         if document.status == KnowledgeDocument.Status.READY:
             return document.chunks.count()
@@ -35,26 +49,24 @@ def process_and_index_document(document_id):
         elif extracted_now or not document.chunks.exists():
             prepare_document_chunks(document.pk)
 
-    # Keep extraction failures saved so staff can inspect them.
+    # Commit extraction failures so staff can inspect them.
     if extraction_error:
         raise DocumentProcessingError(extraction_error)
 
     try:
-        return index_document(document_id)
+        return index_document(
+            document_id,
+            job_run=job_run,
+        )
 
     except EmbeddingError as exc:
-        KnowledgeDocument.objects.filter(
-            pk=document_id,
-            status=KnowledgeDocument.Status.EXTRACTED,
-        ).update(processing_error=str(exc))
-
+        save_indexing_error(document_id, exc, job_run)
         raise
 
     except ValueError:
         document = KnowledgeDocument.objects.get(pk=document_id)
 
         if document.status == KnowledgeDocument.Status.READY:
-            # Another request already completed the same document.
             return document.chunks.count()
 
         raise

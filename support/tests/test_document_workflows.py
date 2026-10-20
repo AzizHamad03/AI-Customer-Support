@@ -15,7 +15,7 @@ from pypdf.generic import (
 
 from support.ai.embeddings import EmbeddingError
 from support.forms import DocumentUploadForm
-from support.models import KnowledgeDocument
+from support.models import DocumentProcessingJob, KnowledgeDocument
 from support.services.chunking import prepare_document_chunks, split_text
 from support.services.document_pipeline import (
     process_and_index_document,
@@ -31,6 +31,7 @@ from support.services.documents import (
 )
 from support.services.indexing import index_document
 from support.services.retrieval import search_knowledge_base
+from support.services.document_worker import process_next_document_job
 
 
 
@@ -471,7 +472,7 @@ class DocumentWorkflowTests(TestCase):
         "support.services.indexing.embed_document_texts",
         return_value=[VECTOR],
     )
-    def test_process_button_completes_pipeline_and_repeat_is_safe(self, embed):
+    def test_process_button_queues_and_repeat_is_safe(self, embed):
         document = self.document()
         self.client.force_login(self.staff)
 
@@ -480,19 +481,36 @@ class DocumentWorkflowTests(TestCase):
             args=[document.pk],
         )
 
-        self.assertEqual(
-            self.client.post(url).status_code,
-            302,
-        )
+        self.assertEqual(self.client.post(url).status_code, 302)
+        self.assertEqual(self.client.post(url).status_code, 302)
 
         document.refresh_from_db()
+
+        self.assertEqual(document.status, "pending")
+        self.assertEqual(document.chunks.count(), 0)
+        self.assertEqual(DocumentProcessingJob.objects.count(), 1)
+        embed.assert_not_called()
+
+        process_next_document_job()
+
+        document.refresh_from_db()
+        job = DocumentProcessingJob.objects.get()
+
         self.assertEqual(document.status, "ready")
         self.assertEqual(document.chunks.count(), 1)
-
         self.assertEqual(
-            self.client.post(url).status_code,
-            302,
+            job.status,
+            DocumentProcessingJob.Status.SUCCEEDED,
         )
+        self.assertEqual(job.attempts, 1)
+        embed.assert_called_once()
+
+        # Processing an already Ready document queues no new work.
+        self.assertEqual(self.client.post(url).status_code, 302)
+
+        job.refresh_from_db()
+        self.assertEqual(job.attempts, 1)
+        self.assertEqual(DocumentProcessingJob.objects.count(), 1)
         embed.assert_called_once()
 
     def test_pipeline_preserves_failed_extraction_without_calling_ai(self):

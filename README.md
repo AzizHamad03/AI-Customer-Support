@@ -6,6 +6,10 @@ assistant retrieves relevant document passages and answers with supporting
 sources. Registered customers can manage saved conversations across browsers
 and devices. Customers can submit confirmed support tickets for staff review.
 
+Staff upload knowledge documents and queue processing from the browser.
+A background worker extracts text, prepares chunks, and generates embeddings.
+One local startup command launches both the website and worker.
+
 ## Problem statement
 
 Small online stores receive repeated shipping, return, and product questions.
@@ -25,6 +29,15 @@ update ticket statuses through an authenticated dashboard.
 ## Implemented features
 
 - PDF/TXT upload, validation, text extraction, chunking, and indexing.
+- Persistent PostgreSQL-backed background document processing.
+- Queued, Processing, Succeeded, and Failed processing-job states.
+- Retry support and duplicate-job prevention.
+- Automatic document-page refresh while processing is queued or running.
+- Embedding requests outside indexing transactions.
+- Document and chunk revalidation before embeddings are saved.
+- Expiring job leases and attempt tokens to prevent superseded workers
+  from publishing results.
+- One-command local startup for the website and document worker.
 - PostgreSQL/pgvector retrieval from active, successfully indexed documents.
 - Configurable cosine-distance filtering to exclude weak retrieval matches.
 - English customer chat with bounded follow-up context.
@@ -110,6 +123,9 @@ session without deleting account history.
 
 Python dependencies are pinned in `requirements.txt`. PostgreSQL and its vector
 extension must be installed separately. There is no SQLite fallback.
+
+Document jobs use the existing PostgreSQL database. Redis and a separate
+message broker are not required.
 
 ## Installation
 
@@ -264,6 +280,9 @@ The embedding model is configured in `config/settings.py` as
 `text-embedding-3-small` with 1536 dimensions. Changing the embedding model
 requires compatible dimensions and reindexing.
 
+`DOCUMENT_JOB_LEASE_SECONDS` is configured directly in `config/settings.py`
+as `900` seconds. It is not read from an environment variable.
+
 `DATABASE_URL` is not used. Shell environment variables take precedence over
 values loaded from `.env`.
 
@@ -275,8 +294,13 @@ Never commit real credentials, `.env`, private uploaded documents, or ticket dat
 python manage.py check
 python manage.py migrate
 python manage.py createsuperuser
-python manage.py runserver
+python manage.py runlocal
 ```
+
+Skip `createsuperuser` if an appropriate staff account already exists.
+
+`runlocal` starts both the web server and document worker from one terminal.
+Keep it running while using the application. Press **Control+C** to stop both.
 
 Open http://127.0.0.1:8000/.
 
@@ -291,23 +315,82 @@ Open http://127.0.0.1:8000/.
 - For guest-history transfer, use `/accounts/login/` or `/accounts/signup/`;
   that transfer is implemented in the application account views.
 
-When updating an existing installation, apply `python manage.py migrate`.
+When updating an existing installation, apply `python manage.py migrate`
+before starting the application. Existing Ready documents do not need
+reindexing for the background-processing change.
+
 The account-ownership migration preserves existing conversations as guest
 conversations until they are transferred through application registration/login.
 
 AI indexing and live answers require an API key with model access and available
 API credit. A ChatGPT subscription is separate from API billing.
 
+## Local development startup
+
+With the virtual environment activated, start the complete local application:
+
+```bash
+python manage.py runlocal
+```
+
+To use a different web-server port:
+
+```bash
+python manage.py runlocal 127.0.0.1:8001
+```
+
+The launcher:
+
+- Starts Django's development server and the document worker.
+- Uses the active Python environment for both processes.
+- Shows both processes' output in one terminal.
+- Stops both when Control+C is pressed.
+- Stops the remaining process if either process exits.
+
+The web server retains Django's automatic code reloading.
+The worker does not automatically reload its Python modules.
+After editing worker or processing-service code, stop and restart `runlocal`.
+
+Also restart after changing environment variables so both processes use
+the updated configuration.
+
+The launcher uses POSIX process groups and is intended for local development
+on macOS or Linux. It is not a production process manager.
+
+### Running the processes separately
+
+For debugging or testing queue behavior, the processes can still be started
+individually.
+
+Web server:
+
+```bash
+python manage.py runserver
+```
+
+Document worker, in another terminal:
+
+```bash
+python manage.py process_document_jobs
+```
+
+Do not run these alongside `runlocal` unless intentionally managing additional
+processes. Normal local use only requires `runlocal`.
+
 ## Load sample documents
 
-1. Open Staff workspace and sign in.
-2. Open Manage documents, then Upload document.
-3. Upload each file in `sample_data/policies/` once.
-4. Click **Process document** to extract text, prepare chunks, and generate
-   embeddings. Confirm the document is Ready and available for chat.
-   If indexing fails, use the same button to retry.
-5. Open Customer chat and ask a sample question.
-6. Expand the answer's source to inspect the supporting passage.
+1. Start the application with `python manage.py runlocal`.
+2. Open Staff workspace and sign in.
+3. Open Manage documents, then Upload document.
+4. Upload each file in `sample_data/policies/` once.
+5. Click **Process document** to queue extraction, chunk preparation,
+   and embedding generation.
+6. The detail page shows Queued, Processing, Succeeded, or Failed.
+   Processing continues even if the page is closed.
+7. Confirm the document is Ready and available for chat.
+   If processing fails, use **Retry processing**.
+8. Open Customer chat and ask a sample question.
+9. Expand the answer's source to inspect the supporting passage.
 
 Use these titles and categories:
 
@@ -322,6 +405,110 @@ Reuse existing matching documents rather than uploading duplicates.
 
 See `sample_data/README.md` for sample questions and replacement testing.
 Sample documents are not automatically loaded by migrations.
+
+## Background document processing
+
+Document processing uses a persistent PostgreSQL-backed queue.
+The browser request only queues work and returns the document page.
+The separate worker performs text extraction, chunk preparation, and indexing.
+
+Staff only need to click **Process document**. They do not run terminal
+commands for individual documents.
+
+### Processing states
+
+Processing jobs have their own state, separate from the document's
+Pending, Extracted, Ready, or Failed status.
+
+| Job state | Meaning |
+| --- | --- |
+| Queued | Saved and waiting for an available worker |
+| Processing | A worker has claimed the job |
+| Succeeded | The processing attempt completed successfully |
+| Failed | The attempt failed; the detail page shows an error and retry option |
+
+The detail page refreshes automatically while the job is queued or processing.
+Small documents may finish between refreshes, so the visible state can change
+directly from Queued to Succeeded.
+
+A successful document must be Ready and active before retrieval can use it.
+
+### Duplicate prevention and retries
+
+Each document has one processing-job record.
+Repeated submissions while it is queued or processing do not create another
+job. Submitting an already Ready document does not start new processing.
+
+Failed jobs can be queued again using **Retry processing**.
+A retry reuses the job record and increases the attempt count when claimed.
+
+After an embedding failure, retries retain extracted text and prepared chunks
+when they are still available. Extraction failures are reprocessed on retry.
+
+### Transaction and replacement safeguards
+
+Indexing captures the document and chunk inputs in a short transaction,
+then requests embeddings outside that transaction.
+
+Before saving the result, it re-locks and checks:
+
+- The document's indexing eligibility and replacement relationship.
+- The document and chunk snapshot.
+- The current processing-attempt token and lease.
+- Whether another replacement has already completed indexing.
+
+If the input state changed or the attempt lost ownership, its embeddings
+are not published.
+
+The original document remains active until replacement indexing succeeds.
+Original deactivation and replacement activation commit together.
+
+### Interrupted workers and leases
+
+Queue records persist when the worker stops.
+Queued work can be claimed when a worker starts again.
+
+Each claimed attempt has a fixed 15-minute lease, configured by
+`DOCUMENT_JOB_LEASE_SECONDS`. An interrupted job may remain Processing until
+its existing lease expires. A running worker can then reclaim it with a new
+attempt token.
+
+An expired or superseded attempt cannot publish its embeddings.
+Attempts that exceed the lease must be processed again.
+
+Recovery may repeat an external embedding request. This is not an exactly-once
+API-call guarantee. Ordinary processing failures are marked Failed and require
+an explicit retry.
+
+### Worker commands
+
+Normal local startup includes the worker automatically:
+
+```bash
+python manage.py runlocal
+```
+
+To run only the worker:
+
+```bash
+python manage.py process_document_jobs
+```
+
+To process at most one available job and exit:
+
+```bash
+python manage.py process_document_jobs --once
+```
+
+The worker checks for available jobs every two seconds while idle.
+The polling interval can be changed:
+
+```bash
+python manage.py process_document_jobs --poll-interval 3
+```
+
+If no worker is running, the website can still save queued jobs, but they
+will not be processed until a worker is available.
 
 ## Customer accounts and saved conversations
 
@@ -349,11 +536,13 @@ Use Deactivate document to exclude a Ready document from future retrieval
 while retaining its file and indexing data. Activate document restores
 availability when the document is eligible.
 
-To update a Ready, active document, choose Upload replacement and process the
-new version. The original remains available until replacement indexing
-succeeds. Successful indexing activates the replacement and deactivates the
-original together. A replaced original cannot be reactivated while a Ready
-replacement references it.
+To update a Ready, active document, choose Upload replacement and queue
+processing for the new version. The original remains available until
+replacement indexing succeeds.
+
+Successful indexing activates the replacement and deactivates the original
+together. A replaced original cannot be reactivated while a Ready replacement
+references it.
 
 To remove a document:
 
@@ -361,11 +550,16 @@ To remove a document:
 2. Choose Delete document.
 3. Review the title/version, tick the confirmation checkbox, and submit.
 
-Deletion removes the database document, extracted text, chunks, and embeddings.
+Deletion removes the database document, extracted text, chunks, embeddings,
+and its processing-job record.
+
 Existing conversations and citation snapshots remain; their chunk links become
 null. Uploaded-file cleanup runs after the database transaction commits. If
 file cleanup fails, the failure is logged and the document remains excluded
 from retrieval.
+
+Deleting a queued or processing document prevents its worker attempt from
+publishing new indexing results.
 
 A document referenced by any replacement version cannot be deleted. Delete
 referencing versions first, or deactivate the document. Deleting a replacement
@@ -414,8 +608,8 @@ The allowance counts POST requests that reach throttling, including requests
 that later fail validation or encounter an AI-service error.
 
 The throttles use Django's cache. The default local-memory cache suits this
-single-process demonstration. Multiple server processes require a shared
-cache for consistent counters.
+demonstration with one web-server process. Multiple web-server processes
+require a shared cache for consistent counters.
 
 DRF's built-in throttles can allow some additional requests under concurrent
 load. They reduce excessive usage but do not enforce a strict spending cap.
@@ -460,8 +654,8 @@ identify the invalid field.
 Chat requests use the browser session cookie. POST requests require a CSRF
 token in the `X-CSRFToken` header, including for anonymous visitors.
 
-Account, conversation-selection, and staff operations use Django pages/forms
-rather than separate REST APIs. Relevant routes include:
+Account, conversation-selection, document-processing, and staff operations use
+Django pages/forms rather than separate REST APIs. Relevant routes include:
 
 | Route | Method | Purpose |
 | --- | --- | --- |
@@ -476,6 +670,9 @@ rather than separate REST APIs. Relevant routes include:
 | `/support/tickets/` | GET | Customer's accessible tickets |
 | `/support/tickets/<id>/` | GET | View an accessible customer ticket |
 | `/staff/` | GET | Staff dashboard |
+| `/staff/documents/<id>/process/` | POST | Queue document processing |
+| `/staff/documents/<id>/chunks/` | POST | Legacy route that queues the unified processing workflow |
+| `/staff/documents/<id>/index/` | POST | Legacy route that queues the unified processing workflow |
 | `/staff/documents/<id>/delete/` | GET, POST | Staff deletion review and confirmation |
 | `/staff/tickets/` | GET | Search and filter staff tickets |
 | `/staff/tickets/<id>/` | GET, POST | Review a ticket and update its status |
@@ -499,14 +696,18 @@ belonging to their current session.
 | config/ | Settings, root URLs, WSGI |
 | config/test_settings.py | Test configuration that prevents shared throttle counters between ordinary tests |
 | support/models/ | Separate domain models |
+| support/models/processing_job.py | Persistent document-job state, attempt tokens, counts, and leases |
 | support/views/ | Pages and API request handling |
 | support/api/ | Serializer, session/CSRF authentication, and chat throttles |
-| support/services/ | Accounts, conversations, documents, retrieval, chat, tickets, and retrieval evaluation |
+| support/services/ | Accounts, conversations, documents, background processing, retrieval, chat, tickets, and evaluation |
+| support/services/processing_jobs.py | Queueing, claiming, lease checks, and job completion |
+| support/services/document_worker.py | Execution of claimed document jobs |
+| support/services/indexing.py | Embedding requests and validated atomic indexing publication |
 | support/ai/ | Embeddings, bounded search agent, search tool, rewriting, structured answers, and prompt loader |
 | support/ai/prompts/ | Markdown prompts for tool selection, question rewriting, and grounded answers |
-| support/management/commands/ | Retrieval evaluation management command |
+| support/management/commands/ | Local startup, document worker, and retrieval evaluation commands |
 | support/migrations/ | Database schema and vector migration |
-| support/tests/ | Functional, permission, reliability, throttling, retrieval, and evaluation-scoring checks |
+| support/tests/ | Functional, permission, reliability, background-processing, throttling, retrieval, and scoring checks |
 | templates/ | Customer and staff pages |
 | static/ | Stylesheet and browser chat code |
 | sample_data/ | Public fictional demonstration documents |
@@ -558,7 +759,13 @@ Use `config.test_settings` for full-suite test runs. It uses a dummy cache so
 unrelated tests do not share rate-limit counters. Dedicated throttle tests
 override this with a working local-memory cache and verify the actual limits.
 
-To run the throttle and ticket-view checks separately:
+To run background-processing and document-workflow checks:
+
+```bash
+python manage.py test support.tests.test_background_documents support.tests.test_document_workflows --keepdb --settings=config.test_settings
+```
+
+To run the throttle and ticket-view checks:
 
 ```bash
 python manage.py test support.tests.test_chat_throttling support.tests.test_ticket_view_rules --keepdb --settings=config.test_settings
@@ -570,13 +777,15 @@ To run retrieval filtering and evaluation-scoring checks:
 python manage.py test support.tests.test_retrieval_threshold support.tests.test_retrieval_evaluation --keepdb --settings=config.test_settings
 ```
 
-Run the application normally with:
+A separate running worker is not required for the automated test suite.
+Worker tests invoke the processing services directly.
+
+Do not use `config.test_settings` to run the website or local launcher.
+Normal local startup is:
 
 ```bash
-python manage.py runserver
+python manage.py runlocal
 ```
-
-Do not use `config.test_settings` to run the application.
 
 Tests cover document processing/replacement/deletion, citation preservation,
 RAG failures, bounded agent tools, ticket draft validation, explicit
@@ -586,6 +795,14 @@ permissions, conversation selection, and stale-tab requests.
 
 Additional checks cover:
 
+- Queueing document work without running embeddings in the web request.
+- Repeated processing submissions creating only one job.
+- Concurrent workers not claiming the same unexpired attempt.
+- Embedding requests outside database transactions.
+- Retrying failed embedding requests with existing chunks.
+- Replacement activation only after successful indexing.
+- Expired attempts being prevented from publishing after reclamation.
+- Document or chunk changes invalidating pending embedding results.
 - Guest and account chat limits.
 - Shared IP/account allowances and allowance expiry.
 - Forwarded-header handling for guest throttling.
@@ -617,7 +834,27 @@ git status --short
 
 ### Manual verification
 
-With the server running and sample documents indexed:
+Start the complete application:
+
+```bash
+python manage.py runlocal
+```
+
+Check the document workflow:
+
+1. Upload a separate test document.
+2. Click Process document and confirm the page returns promptly.
+3. Confirm the job reaches Succeeded and the document becomes Ready.
+4. Verify that refreshing or leaving the page does not cancel processing.
+5. Deactivate the test document afterward to preserve the benchmark setup.
+6. Press Control+C and confirm the local launcher stops both processes.
+7. Restart `runlocal` and confirm the application starts normally.
+
+For an explicit Queued-state check, run only the web server, queue a test
+document, then start the worker separately. The queued job should be processed
+without submitting the form again.
+
+With the sample documents indexed:
 
 1. Ask a shipping question and inspect the supporting citation.
 2. Ask a follow-up question and confirm the context is interpreted correctly.
@@ -647,11 +884,18 @@ The dedicated automated throttle tests verify rate limits without paid AI calls.
 | Authentication failed | DB_USER and DB_PASSWORD match the database role |
 | vector.control missing | Server extension is installed for the running PostgreSQL version |
 | Permission denied creating vector | Administrator enabled vector in the application/test database |
+| Processing-job table missing | Apply python manage.py migrate |
+| Document stays Queued | Start runlocal or the document worker; inspect the worker output |
+| Document stays Processing after interruption | Keep a worker running; the attempt becomes reclaimable when its existing lease expires |
+| Processing Failed | Read the job error, resolve the cause, and use Retry processing |
+| Worker still uses old Python code | Stop and restart runlocal after editing worker or processing-service modules |
+| Port already in use | Stop the old server or choose another address with runlocal |
+| Launcher stops immediately | Inspect which child process exited and its preceding error messages |
 | No searchable documents | Documents are indexed, Ready, and Active |
 | No relevant passages found | The question may be unsupported or all matches may exceed the distance cutoff |
 | Expected policy answer falls back | Check active document content and retrieval distances; use development cases to assess the cutoff |
 | Invalid retrieval threshold | RETRIEVAL_MAX_DISTANCE must be a number between 0 and 2 |
-| API error | Key, billing, model access, and network; restart after editing .env |
+| API error | Key, billing, model access, and network; restart runlocal after editing .env |
 | Empty/scanned file fails | Use non-empty UTF-8 TXT or text-based PDF |
 | Conversation changed / HTTP 409 | Review reloaded history before resending; another tab or request may have changed it |
 | Chat returns HTTP 429 | Wait for the Retry-After interval; guests sharing an IP share an allowance |
@@ -716,6 +960,9 @@ Other Ready documents must be inactive for this benchmark.
 Do not upload duplicate sample documents or use the version-2 shipping
 replacement for these version-1 labels.
 
+Wait for sample-document processing to finish before starting evaluation.
+Do not process replacements or change document availability during a run.
+
 Run the development evaluation with the current cutoff:
 
 ```bash
@@ -729,7 +976,10 @@ python manage.py evaluate_retrieval --split eval --label threshold_0_8
 ```
 
 These commands use the configured embedding API. Follow-up cases also use
-the chat model to rewrite questions. The web server does not need to be running.
+the chat model to rewrite questions.
+
+The evaluation runs directly against the indexed database. The web server
+and document worker do not need to be running once the documents are Ready.
 
 The `--label` argument names the run; it does not change retrieval behavior.
 The actual cutoff comes from `RETRIEVAL_MAX_DISTANCE`.
@@ -774,6 +1024,8 @@ The dataset and knowledge-base fingerprints matched between the corresponding
 baseline and filtered runs. The knowledge base remained unchanged during
 each run.
 
+These reports were recorded before the background-processing change.
+
 The report files are:
 
 - `evaluation/results/dev_baseline_20261020T133429500504Z.json`
@@ -809,6 +1061,7 @@ It does not create customer conversations, messages, or tickets.
 
 Reported timings are observations from individual runs and are not sufficient
 to establish a reliable speed improvement or regression.
+They do not measure background document-processing performance.
 
 ### Remaining work
 
@@ -823,16 +1076,18 @@ presentation remain separate deliverables.
 
 Possible later improvements include:
 
-- Moving document processing to a background job.
-- Moving embedding API calls outside document-indexing transactions.
 - Adding an overall chat-request time budget.
 - Expanding development coverage to include harder unsupported questions
   that use store-related vocabulary.
 - Recalibrating retrieval filtering as the knowledge base grows.
+- Adding pagination or bounded loading for long conversation histories.
 
-Current document indexing runs synchronously, and long conversation histories
-are loaded in full.
+Document processing now runs through a background worker.
+Long conversation histories are still loaded in full.
 
-The current scope is one demonstration store with English text chat. The
-application does not yet include password recovery, email verification, or
-production deployment configuration.
+The current scope is one demonstration store with English text chat.
+The application does not yet include password recovery, email verification,
+or production deployment configuration.
+
+A production deployment must manage the web application and document worker
+as persistent services. The local runlocal launcher is for development.

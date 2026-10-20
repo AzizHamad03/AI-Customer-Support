@@ -11,14 +11,8 @@ from django.views.decorators.http import (
     require_POST,
 )
 
-from support.ai.embeddings import EmbeddingError
 from support.forms import DocumentReplacementForm, DocumentUploadForm
-from support.models import KnowledgeDocument
-from support.services.chunking import prepare_document_chunks
-from support.services.document_pipeline import (
-    process_and_index_document,
-)
-from support.services.document_processing import DocumentProcessingError
+from support.models import DocumentProcessingJob, KnowledgeDocument
 from support.services.documents import (
     create_document,
     create_replacement_document,
@@ -26,7 +20,8 @@ from support.services.documents import (
     list_documents,
     set_document_active,
 )
-from support.services.indexing import index_document
+from support.services.processing_jobs import queue_document_processing
+
 
 
 
@@ -145,6 +140,10 @@ def document_detail(request, pk):
         and pending_replacement is None
     )
 
+    processing_job = DocumentProcessingJob.objects.filter(
+        document=document,
+    ).first()
+
     return render(
         request,
         "support/document_detail.html",
@@ -155,6 +154,10 @@ def document_detail(request, pk):
             "replacement": replacement,
             "pending_replacement": pending_replacement,
             "can_replace": can_replace,
+            "processing_job": processing_job,
+            "processing_busy": bool(
+                processing_job and processing_job.is_busy
+            ),
         },
     )
 
@@ -165,21 +168,39 @@ def document_process(request, pk):
     document = get_object_or_404(KnowledgeDocument, pk=pk)
 
     try:
-        process_and_index_document(document.pk)
+        job, queued = queue_document_processing(document.pk)
 
-    except (
-        DocumentProcessingError,
-        EmbeddingError,
-        ValueError,
-    ) as exc:
-        messages.error(request, str(exc))
+    except KnowledgeDocument.DoesNotExist:
+        messages.info(
+            request,
+            "This document is no longer available.",
+        )
+        return redirect("support:document_list")
+
+    except DatabaseError:
+        logger.exception("Could not queue document processing")
+        messages.error(
+            request,
+            "Processing could not be queued. Please try again.",
+        )
 
     else:
-        messages.success(
-            request,
-            "Document processing completed. "
-            "Review its availability below.",
-        )
+        if job is None:
+            messages.info(
+                request,
+                "This document is already indexed.",
+            )
+        elif queued:
+            messages.success(
+                request,
+                "Document processing queued. "
+                "You can leave this page while it runs.",
+            )
+        else:
+            messages.info(
+                request,
+                "This document is already queued or processing.",
+            )
 
     return redirect(
         "support:document_detail",
@@ -190,49 +211,13 @@ def document_process(request, pk):
 @staff_member_required(login_url="support:login")
 @require_POST
 def document_prepare_chunks(request, pk):
-    document = get_object_or_404(KnowledgeDocument, pk=pk)
-
-    try:
-        count = prepare_document_chunks(document.pk)
-    except ValueError as exc:
-        messages.error(request, str(exc))
-    else:
-        messages.success(
-            request,
-            f"Prepared {count} chunk(s).",
-        )
-
-    return redirect("support:document_detail", pk=document.pk)
+    return document_process(request, pk)
 
 
 @staff_member_required(login_url="support:login")
 @require_POST
 def document_index(request, pk):
-    document = get_object_or_404(KnowledgeDocument, pk=pk)
-
-    try:
-        count = index_document(document.pk)
-    except EmbeddingError as exc:
-        document.processing_error = str(exc)
-        document.save(update_fields=["processing_error"])
-        messages.error(request, str(exc))
-    except ValueError as exc:
-        messages.error(request, str(exc))
-    else:
-        if document.replaces_id:
-            messages.success(
-                request,
-                f"Indexed {count} chunk(s). "
-                f"Version {document.version} is now active, "
-                "and the original version has been deactivated.",
-            )
-        else:
-            messages.success(
-                request,
-                f"Indexed {count} chunk(s). The document is ready.",
-            )
-
-    return redirect("support:document_detail", pk=document.pk)
+    return document_process(request, pk)
 
 
 @staff_member_required(login_url="support:login")

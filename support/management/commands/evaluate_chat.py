@@ -1,0 +1,462 @@
+import csv
+import hashlib
+import json
+from importlib import import_module
+from time import perf_counter
+from uuid import uuid4
+from urllib.parse import urlsplit
+
+import requests
+from django.conf import settings
+from django.contrib.auth import (
+    BACKEND_SESSION_KEY,
+    HASH_SESSION_KEY,
+    SESSION_KEY,
+    get_user_model,
+)
+from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
+
+from support.models import Conversation, Message
+from support.services.accounts import ACTIVE_CONVERSATION_KEY
+
+from .evaluate_retrieval import corpus_snapshot, digest, load_cases
+
+
+def latency_summary(values):
+    if not values:
+        return None
+
+    ordered = sorted(values)
+    count = len(ordered)
+
+    if count % 2:
+        median = ordered[count // 2]
+    else:
+        median = (
+            ordered[count // 2 - 1] + ordered[count // 2]
+        ) / 2
+
+    return {
+        "count": count,
+        "mean_ms": round(sum(ordered) / count, 2),
+        "median_ms": round(median, 2),
+        "min_ms": round(ordered[0], 2),
+        "max_ms": round(ordered[-1], 2),
+    }
+
+
+class Command(BaseCommand):
+    help = "Measure complete chat requests against the running local server."
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--base-url",
+            default="http://127.0.0.1:8000",
+        )
+
+    def handle(self, *args, **options):
+        base_url = options["base_url"].rstrip("/")
+        parsed = urlsplit(base_url)
+
+        if (
+            parsed.scheme != "http"
+            or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parsed.username
+            or parsed.password
+            or parsed.path
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise CommandError(
+                "Use a local HTTP origin, such as "
+                "http://127.0.0.1:8000."
+            )
+
+        cases = load_cases(
+            settings.BASE_DIR / "evaluation" / "retrieval_eval.json"
+        )
+
+        expectations_path = (
+            settings.BASE_DIR
+            / "evaluation"
+            / "chat_expectations.json"
+        )
+
+        try:
+            expectations = json.loads(
+                expectations_path.read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError) as exc:
+            raise CommandError(
+                f"Cannot read chat expectations: {exc}"
+            ) from exc
+
+        if (
+            not isinstance(expectations, dict)
+            or set(expectations) != {case["id"] for case in cases}
+            or any(
+                not isinstance(value, str) or not value.strip()
+                for value in expectations.values()
+            )
+        ):
+            raise CommandError(
+                "Chat expectations must contain one non-empty "
+                "description for every evaluation case ID."
+            )
+
+        before = corpus_snapshot()
+        created_at = timezone.now()
+        run_id = uuid4().hex
+
+        # A dedicated ordinary customer account isolates this run.
+        # It has no usable password and no staff permissions.
+        user = get_user_model().objects.create_user(
+            username=f"chat_eval_{run_id}",
+            password=None,
+        )
+
+        session_class = import_module(
+            settings.SESSION_ENGINE
+        ).SessionStore
+        browser_session = session_class()
+        browser_session[SESSION_KEY] = str(user.pk)
+        browser_session[BACKEND_SESSION_KEY] = (
+            "django.contrib.auth.backends.ModelBackend"
+        )
+        browser_session[HASH_SESSION_KEY] = (
+            user.get_session_auth_hash()
+        )
+        browser_session.save()
+
+        http = requests.Session()
+        http.trust_env = False
+        http.cookies.set(
+            settings.SESSION_COOKIE_NAME,
+            browser_session.session_key,
+        )
+
+        results = []
+        setup_error = None
+        request_unsettled = False
+
+        try:
+            # Obtain a real CSRF cookie from the running application.
+            response = http.get(
+                f"{base_url}/chat/",
+                timeout=(5, 30),
+                allow_redirects=False,
+            )
+            response.raise_for_status()
+
+            csrf_token = http.cookies.get(
+                settings.CSRF_COOKIE_NAME
+            )
+
+            if not csrf_token:
+                raise ValueError(
+                    "The chat page did not supply a CSRF cookie."
+                )
+
+            for number, case in enumerate(cases, start=1):
+                self.stdout.write(
+                    f"[{number}/{len(cases)}] {case['id']}"
+                )
+
+                conversation = Conversation.objects.create(user=user)
+
+                # Fixed prior context is seeded for follow-up cases.
+                # The current answer is always generated by the real API.
+                Message.objects.bulk_create([
+                    Message(
+                        conversation=conversation,
+                        role=message["role"],
+                        content=message["content"],
+                    )
+                    for message in case.get("history", [])
+                ])
+
+                browser_session[ACTIVE_CONVERSATION_KEY] = (
+                    conversation.pk
+                )
+                browser_session.save()
+
+                check = http.get(
+                    f"{base_url}/api/chat/",
+                    timeout=(5, 30),
+                    allow_redirects=False,
+                )
+                check.raise_for_status()
+
+                if check.json().get("conversation_id") != conversation.pk:
+                    raise ValueError(
+                        "The server did not open the expected evaluation "
+                        "conversation. Check that the server and command "
+                        "use the same database and settings."
+                    )
+
+                result = {
+                    "id": case["id"],
+                    "kind": case["kind"],
+                    "question": case["question"],
+                    "history": case.get("history", []),
+                    "expected_answer": expectations[case["id"]],
+                    "expected_evidence": case["expected_evidence"],
+                    "conversation_id": conversation.pk,
+                    "http_status": None,
+                    "latency_ms": None,
+                    "answer": None,
+                    "citations": [],
+                    "error": None,
+                }
+
+                started = perf_counter()
+
+                try:
+                    # No automatic retry: failures remain visible.
+                    request_unsettled = True
+                    response = http.post(
+                        f"{base_url}/api/chat/",
+                        json={
+                            "content": case["question"],
+                            "conversation_id": conversation.pk,
+                        },
+                        headers={
+                            "X-CSRFToken": csrf_token,
+                            "Referer": f"{base_url}/chat/",
+                        },
+                        timeout=(5, 600),
+                        allow_redirects=False,
+                    )
+                    request_unsettled = False
+
+                    # requests has received the complete response body.
+                    result["latency_ms"] = round(
+                        (perf_counter() - started) * 1000,
+                        2,
+                    )
+                    result["http_status"] = response.status_code
+                    payload = response.json()
+
+                    if response.status_code != 200:
+                        result["error"] = {
+                            "type": "HTTPError",
+                            "detail": payload,
+                        }
+                    else:
+                        messages = payload.get("messages")
+
+                        if (
+                            payload.get("conversation_id") != conversation.pk
+                            or not isinstance(messages, list)
+                        ):
+                            raise ValueError(
+                                "Unexpected chat response structure."
+                            )
+
+                        assistants = [
+                            message
+                            for message in messages
+                            if message.get("role") == "assistant"
+                        ]
+
+                        if (
+                            len(assistants) != 1
+                            or not isinstance(
+                                assistants[0].get("content"), str
+                            )
+                            or not assistants[0]["content"].strip()
+                            or not isinstance(
+                                assistants[0].get("citations"), list
+                            )
+                        ):
+                            raise ValueError(
+                                "Expected one non-empty assistant answer."
+                            )
+
+                        result["answer"] = assistants[0]["content"]
+                        result["citations"] = assistants[0]["citations"]
+
+                except (requests.RequestException, ValueError) as exc:
+                    result["error"] = {
+                        "type": type(exc).__name__,
+                        "detail": str(exc),
+                    }
+
+                results.append(result)
+
+                if result["error"]:
+                    self.stderr.write(
+                        f"  Failed: {result['error']['type']}"
+                    )
+
+                # A connection failure may leave a server request running.
+                # Stop rather than issuing more requests in that situation.
+                if request_unsettled:
+                    break
+
+        except (requests.RequestException, ValueError) as exc:
+            setup_error = {
+                "type": type(exc).__name__,
+                "detail": str(exc),
+            }
+
+        finally:
+            http.close()
+            browser_session.delete()
+
+        try:
+            unchanged = corpus_snapshot() == before
+        except CommandError:
+            unchanged = False
+
+        successful = [
+            result
+            for result in results
+            if result["error"] is None
+        ]
+
+        summary = {
+            "expected_cases": len(cases),
+            "attempted_cases": len(results),
+            "http_successful_cases": len(successful),
+            "error_cases": sum(
+                result["error"] is not None
+                for result in results
+            ),
+            "setup_error": setup_error,
+            "corpus_unchanged": unchanged,
+            "successful_request_latency": latency_summary([
+                result["latency_ms"]
+                for result in successful
+            ]),
+            "successful_request_latency_by_kind": {
+                kind: latency_summary([
+                    result["latency_ms"]
+                    for result in successful
+                    if result["kind"] == kind
+                ])
+                for kind in ("answerable", "unsupported", "followup")
+            },
+            "answer_quality_review": "pending",
+        }
+
+        source_paths = [
+            "config/settings.py",
+            "support/views/chat.py",
+            "support/services/chat.py",
+            "support/services/retrieval.py",
+            "support/ai/agent.py",
+            "support/ai/tools.py",
+            "support/ai/answers.py",
+            "support/ai/embeddings.py",
+            "support/ai/prompts/tool_selection.md",
+            "support/ai/prompts/rewrite_question.md",
+            "support/ai/prompts/grounded_answer.md",
+            "support/management/commands/evaluate_chat.py",
+        ]
+
+        report = {
+            "metadata": {
+                "run_id": run_id,
+                "created_at": created_at.isoformat(),
+                "completed_at": timezone.now().isoformat(),
+                "base_url": base_url,
+                "chat_model": settings.CHAT_MODEL,
+                "embedding_model": settings.EMBEDDING_MODEL,
+                "retrieval_max_distance": settings.RETRIEVAL_MAX_DISTANCE,
+                "dataset_sha256": digest(cases),
+                "expectations_sha256": digest(expectations),
+                "corpus_sha256": digest(before),
+                "corpus": before,
+                "source_sha256": {
+                    name: hashlib.sha256(
+                        (settings.BASE_DIR / name).read_bytes()
+                    ).hexdigest()
+                    for name in source_paths
+                },
+                "followup_method": "fixed history seeded before request",
+                "latency_scope": (
+                    "Local HTTP POST through complete response body; "
+                    "excludes setup, history seeding, and browser rendering."
+                ),
+                "request_timeout_seconds": 600,
+                "evaluation_username": user.username,
+            },
+            "summary": summary,
+            "results": results,
+        }
+
+        output_dir = settings.BASE_DIR / "evaluation" / "results"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = created_at.strftime("%Y%m%dT%H%M%S%fZ")
+        stem = f"chat_eval_{timestamp}_{run_id[:8]}"
+        json_path = output_dir / f"{stem}.json"
+        csv_path = output_dir / f"{stem}_review.csv"
+
+        with json_path.open("x", encoding="utf-8") as output:
+            json.dump(report, output, indent=2, ensure_ascii=False)
+
+        with csv_path.open(
+            "x", encoding="utf-8", newline=""
+        ) as output:
+            fields = [
+                "id",
+                "kind",
+                "question",
+                "expected_answer",
+                "answer",
+                "citations",
+                "http_status",
+                "latency_ms",
+                "answer_correct",
+                "grounded",
+                "review_notes",
+            ]
+            writer = csv.DictWriter(output, fieldnames=fields)
+            writer.writeheader()
+
+            for result in results:
+                writer.writerow({
+                    "id": result["id"],
+                    "kind": result["kind"],
+                    "question": result["question"],
+                    "expected_answer": result["expected_answer"],
+                    "answer": result["answer"],
+                    "citations": json.dumps(
+                        result["citations"],
+                        ensure_ascii=False,
+                    ),
+                    "http_status": result["http_status"],
+                    "latency_ms": result["latency_ms"],
+                    "answer_correct": "",
+                    "grounded": "",
+                    "review_notes": "",
+                })
+
+        # Remove only the dedicated evaluation account and its data.
+        # Preserve it if a request may still be running on the server.
+        if not request_unsettled:
+            Conversation.objects.filter(user=user).delete()
+            user.delete()
+        else:
+            self.stderr.write(
+                "Evaluation data retained because a request may still "
+                f"be running. Account: {user.username}"
+            )
+
+        self.stdout.write(json.dumps(summary, indent=2))
+        self.stdout.write(f"Saved results: {json_path}")
+        self.stdout.write(f"Saved review sheet: {csv_path}")
+
+        if (
+            setup_error
+            or len(results) != len(cases)
+            or len(successful) != len(cases)
+            or not unchanged
+        ):
+            raise CommandError(
+                "The evaluation is incomplete or contains failures. "
+                "Inspect the saved report before interpreting results."
+            )

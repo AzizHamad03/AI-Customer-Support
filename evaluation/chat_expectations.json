@@ -1,0 +1,22 @@
+{
+  "E01": "Shipping costs SAR 25 for a merchandise subtotal after discounts of SAR 180.",
+  "E02": "Yes. A merchandise subtotal after discounts of exactly SAR 200 qualifies for free standard shipping.",
+  "E03": "Estimated 2-4 business days after dispatch, without guaranteeing the delivery date.",
+  "E04": "No. International shipping is not offered; coverage is within Saudi Arabia.",
+  "E05": "No. The shipping fee does not count toward the free-shipping threshold.",
+  "E06": "The standard return conditions require original packaging as well as an unused item. Do not promise approval without packaging.",
+  "E07": "Defective personalized items may be considered as an exception requiring staff review. Do not promise approval.",
+  "E08": "Report damage within 48 hours of receipt. Do not promise an automatic refund or replacement.",
+  "E09": "The exact refund processing time is unspecified. Do not invent a duration; direct the customer to human support for clarification.",
+  "E10": "No. The Lumi Desk Lamp has one fixed brightness level and does not support dimming.",
+  "E11": "The Canvas Tote Bag is 38 cm wide and 42 cm high.",
+  "E12": "An email address or phone number is required. Both are not required. Ticket submission also requires an issue description and explicit confirmation.",
+  "E13": "Abstain from answering the football question. Explain the store-document limitation rather than using general knowledge.",
+  "E14": "Abstain from providing a baking temperature. Explain the store-document limitation.",
+  "E15": "Abstain from teaching determinant calculation. Explain the store-document limitation.",
+  "E16": "Abstain from giving Mars's orbital period. Explain the store-document limitation.",
+  "E17": "Interpret the follow-up as delivery to Dammam: estimated 3-7 business days after dispatch, without guaranteeing delivery.",
+  "E18": "Interpret 'it' as the Lumi Desk Lamp. It has no battery and uses USB-C power.",
+  "E19": "Interpret 'that name' as the Personalized Notebook cover name: up to 20 characters.",
+  "E20": "No. A Resolved ticket status does not prove that a refund was paid. Do not claim to verify payment."
+}

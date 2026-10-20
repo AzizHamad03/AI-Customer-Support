@@ -26,6 +26,19 @@ offers human support.
 Staff manage the knowledge base, review ticket-linked conversations, and
 update ticket statuses through an authenticated dashboard.
 
+## Performance evaluation
+
+See the [Performance Evaluation Report](docs/performance_evaluation.pdf)
+for retrieval results, generated-answer quality, complete response
+latency, local memory measurements, and evaluation limitations.
+
+A comprehensive evaluation run (`4760c90132b44e56a035d9ed6276b5c4`) conducted on 20 October 2026 assessed end-to-end chat performance across 20 test cases:
+
+- **Answer Quality & Groundedness:** 100% pass rate (20/20) against expected behavior. All 12 answerable and 4 follow-up questions passed manual review with supporting citations (16/16), while 4 unsupported questions were declined appropriately without hallucinating facts.
+- **Retrieval Performance:** With maximum cosine distance filtering set to `0.80`, mean evidence coverage reached 100% across top matches, and unsupported query matches dropped from 4/4 (baseline) to 0/4 (100% no-match rate).
+- **End-to-End Latency:** Complete response times averaged 4.66 s (median 4.19 s; min 2.32 s; max 8.24 s), compared to 663.43 ms for retrieval and rewriting alone.
+- **Local Application Memory:** Monitored resident set size (RSS) across all application processes peaked at 62.97 MiB during idle state, 113.30 MiB during chat evaluation, and 203.12 MiB during background document processing.
+
 ## Implemented features
 
 - PDF/TXT upload, validation, text extraction, chunking, and indexing.
@@ -713,6 +726,7 @@ belonging to their current session.
 | sample_data/ | Public fictional demonstration documents |
 | evaluation/ | Development and evaluation datasets |
 | evaluation/results/ | Timestamped retrieval evaluation reports |
+| docs/ | Documentation and evaluation reports, including the performance evaluation PDF |
 | media/ | Runtime uploads, excluded from Git |
 
 The prompt files are:
@@ -1032,55 +1046,48 @@ The report files are:
 - `evaluation/results/eval_baseline_20261020T133513590862Z.json`
 - `evaluation/results/dev_threshold_0_8_20261020T134848856794Z.json`
 - `evaluation/results/eval_threshold_0_8_20261020T135146093948Z.json`
+- `chat_eval_20261020T162217259609Z_4760c901.json`
 
 Keep the original baseline reports unchanged.
 Naming a new run `baseline` does not disable the current filter.
 
 ### Evaluation limitations
 
-This is a small retrieval benchmark over four short demonstration documents.
+This is a small benchmark over four short demonstration documents.
 Evidence matching uses document titles and normalized text phrases.
 A high top-5 score alone is not strong evidence of retrieval quality because
 the knowledge base contains only four documents.
 
-The recorded results demonstrate retrieval behavior on these cases.
+The recorded results demonstrate system behavior on these cases.
 They do not establish overall chatbot accuracy or general performance across
-other stores and larger knowledge bases.
+other stores and larger knowledge bases. Manual judgments were not
+independently reviewed by a second evaluator.
 
-The unsupported questions are clearly outside the store's domain.
+The unsupported questions in the dataset are clearly outside the store's domain.
 Harder unsupported questions that use store-related vocabulary are needed
 to assess filtering more thoroughly.
 
 Follow-up reference questions are retained for inspection. Retrieval uses
 the actual model-generated rewrite rather than the reference wording.
 
-The runner evaluates direct vector retrieval and follow-up rewriting.
-It does not evaluate agent tool selection, generated-answer correctness,
-groundedness, ticket workflows, or full end-to-end chat latency.
-It does not create customer conversations, messages, or tickets.
-
 Reported timings are observations from individual runs and are not sufficient
-to establish a reliable speed improvement or regression.
-They do not measure background document-processing performance.
+to establish a repeatable speed improvement or regression due to model and
+network variability. Memory measurements reflect short observation windows
+over a demonstration setup (including single-chunk 119-byte text processing)
+and do not represent large PDF processing or high concurrency.
 
 ### Remaining work
 
-The broader proposed evaluation includes 25 answerable questions,
-10 unsupported questions, 10 escalation workflows, and 5 multi-turn
-conversations, with separate development examples.
-
-The broader performance report will cover retrieval and answer quality,
-groundedness, ticket success, latency, local backend memory, and a no-RAG
-comparison. That evaluation, its performance report, and the final
-presentation remain separate deliverables.
-
 Possible later improvements include:
 
+- Expanding evaluation to include larger corpora, scanned documents, and PDFs.
 - Adding an overall chat-request time budget.
 - Expanding development coverage to include harder unsupported questions
   that use store-related vocabulary.
 - Recalibrating retrieval filtering as the knowledge base grows.
 - Adding pagination or bounded loading for long conversation histories.
+- Implementing a production process manager (systemd, Supervisor, Docker)
+  to run the web app and worker as persistent services.
 
 Document processing now runs through a background worker.
 Long conversation histories are still loaded in full.
@@ -1088,6 +1095,3 @@ Long conversation histories are still loaded in full.
 The current scope is one demonstration store with English text chat.
 The application does not yet include password recovery, email verification,
 or production deployment configuration.
-
-A production deployment must manage the web application and document worker
-as persistent services. The local runlocal launcher is for development.

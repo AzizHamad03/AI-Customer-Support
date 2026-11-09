@@ -10,6 +10,27 @@ Staff upload knowledge documents and queue processing from the browser.
 A background worker extracts text, prepares chunks, and generates embeddings.
 One local startup command launches both the website and worker.
 
+[Try the guest demo](#try-the-guest-demo) · [Local installation](#installation) ·
+[Load sample documents](#load-sample-documents) · [Staff workflow](#staff-workflow) ·
+[Performance evaluation](#performance-evaluation)
+
+## Try the guest demo
+
+After [local setup](#installation), open <http://127.0.0.1:8000/> and click
+**Try the live demo**. You can use chat without signing in. For a clean guest
+session, open the page in a private browser window.
+
+Click a sample question to send it, or type your own.
+
+| Try this | What to look for |
+| --- | --- |
+| How much does shipping cost? | An answer based on the active shipping policy. Expand the citation beneath the answer to read the supporting passage. |
+| How long does Riyadh delivery take? | A delivery estimate for Riyadh. After the reply, click **What about other cities?** to see how the assistant carries the shipping context forward. |
+| Where is order DEMO-123? | The assistant explains that it cannot check live orders and points you to **Request human support**. |
+
+The store and its policies are fictional. Use the [sample ticket details](#support-ticket-demonstration)
+when testing and keep real personal information out of chat and ticket forms.
+
 ## Problem statement
 
 Small online stores receive repeated shipping, return, and product questions.
@@ -54,6 +75,9 @@ A comprehensive evaluation run (`4760c90132b44e56a035d9ed6276b5c4`) conducted on
 - PostgreSQL/pgvector retrieval from active, successfully indexed documents.
 - Configurable cosine-distance filtering to exclude weak retrieval matches.
 - English customer chat with bounded follow-up context.
+- Guest entry from the homepage with clickable starter questions and a contextual follow-up.
+- Fictional store notice and sample ticket details for visitors.
+- Repeatable loading and indexing of the four bundled policies with `seed_demo`.
 - Persistent messages and citation evidence.
 - Ticket validation, review, explicit confirmation, and duplicate prevention.
 - Ticket draft validation and confirmation handled by the ticket service,
@@ -113,6 +137,8 @@ human chat handoff are outside the current scope.
 Registration creates an ordinary customer account. It does not grant staff or
 superuser permissions. Staff access requires an active Django user with
 `is_staff=True`; the superuser created during setup has this access.
+Staff workspace links are visible only to active staff. Direct visits to staff
+pages require staff sign-in.
 
 Guest access depends on session cookies. Clearing cookies or session expiry
 can remove access to guest history and tickets. Registering or logging in
@@ -306,18 +332,27 @@ Never commit real credentials, `.env`, private uploaded documents, or ticket dat
 ```bash
 python manage.py check
 python manage.py migrate
-python manage.py createsuperuser
+```
+
+If you do not already have an active staff account, create one with
+`python manage.py createsuperuser`. Then replace `your_staff_username` with
+that account's actual username and run the following commands.
+
+```bash
+python manage.py seed_demo --staff-username your_staff_username
 python manage.py runlocal
 ```
 
-Skip `createsuperuser` if an appropriate staff account already exists.
+See [Load sample documents](#load-sample-documents) for what the seed command
+does and how to verify a repeat run.
 
 `runlocal` starts both the web server and document worker from one terminal.
 Keep it running while using the application. Press **Control+C** to stop both.
 
-Open http://127.0.0.1:8000/.
+Open <http://127.0.0.1:8000/>.
 
-- Customers can use guest chat or choose Create account / Log in.
+- Click **Try the live demo** for guest chat. Use **Create account** or **Log in**
+  to access account-owned conversation history.
 - Staff can use Log in with their existing staff credentials; the default
   destination after login is the staff workspace.
 - `/admin/` remains available for Django administration.
@@ -392,18 +427,42 @@ processes. Normal local use only requires `runlocal`.
 
 ## Load sample documents
 
-1. Start the application with `python manage.py runlocal`.
-2. Open Staff workspace and sign in.
-3. Open Manage documents, then Upload document.
-4. Upload each file in `sample_data/policies/` once.
-5. Click **Process document** to queue extraction, chunk preparation,
-   and embedding generation.
-6. The detail page shows Queued, Processing, Succeeded, or Failed.
-   Processing continues even if the page is closed.
-7. Confirm the document is Ready and available for chat.
-   If processing fails, use **Retry processing**.
-8. Open Customer chat and ask a sample question.
-9. Expand the answer's source to inspect the supporting passage.
+### Seed the policies from the terminal
+
+Run this after database migrations with your virtual environment active. Use
+the username of an existing active staff account. Configure `OPENAI_API_KEY`
+before running the command if any policy needs indexing.
+
+```bash
+python manage.py seed_demo --staff-username your_staff_username
+```
+
+The command loads the four TXT files from `sample_data/policies/` and runs
+their jobs through the same extraction, chunking, and embedding pipeline used
+by the document worker. It can run before starting `runlocal`.
+
+It matches existing policies by exact title and reuses the active version,
+including policies previously uploaded through the staff UI. Newly indexed
+policies print `Indexed`. Already indexed policies print `Already ready`.
+A successful run ends with `All four demo policies are ready.` Run the same
+command again to verify that all four report `Already ready` without creating
+new copies. If indexing fails, fix the reported error and rerun the command
+to resume.
+
+If a policy has only inactive versions, choose which version to activate in
+the staff workspace before retrying. Migrations create the schema. The seed
+command loads the sample documents.
+
+### Upload manually from the staff workspace
+
+1. Start the application with `python manage.py runlocal` and sign in as staff.
+2. Open **Manage documents**, then **Upload document**.
+3. Upload each policy you still need using the titles and categories below.
+4. Click **Process document** to queue extraction, chunk preparation, and
+   embedding generation. Processing continues after you leave the page.
+5. Check that the job reaches **Succeeded** and the document is **Ready** and
+   active. If processing fails, resolve the error and click **Retry processing**.
+6. Open **Try the live demo**, ask a sample question, and expand its citation.
 
 Use these titles and categories:
 
@@ -416,8 +475,9 @@ Use these titles and categories:
 
 Reuse existing matching documents rather than uploading duplicates.
 
-See `sample_data/README.md` for sample questions and replacement testing.
-Sample documents are not automatically loaded by migrations.
+See [sample data notes](sample_data/README.md) for more sample questions and
+replacement testing. The retrieval benchmark expects the original version-1
+policies. Seeding preserves an existing active replacement.
 
 ## Background document processing
 
@@ -581,15 +641,34 @@ conversation-renaming interface is currently provided.
 
 ## Support-ticket demonstration
 
-1. Report a damaged delivery in chat.
-2. Click Request human support.
-3. Enter fictional contact details, an issue description, and an optional
-   order reference.
-4. Review the details and explicitly confirm.
-5. Check the saved reference and status under My tickets.
-6. Open the ticket in the staff workspace and update its status.
+1. From guest chat, ask **Where is order DEMO-123?**
+2. Click **Request human support**. The form displays fictional sample details.
+3. Fill in the fields using the example below.
+4. Click **Review ticket**, check the draft, then click **Confirm and create ticket**.
+5. Note the `TKT-…` reference and check the ticket's status under **My tickets**
+   in the same browser session.
 
-Sending a chat message alone does not create a ticket.
+| Field | Sample value |
+| --- | --- |
+| Email address | `demo@example.com` |
+| Phone number | Leave blank |
+| What do you need help with? | I would like an update on my demo order. |
+| Order reference | `DEMO-123` |
+
+Creating a ticket requires explicit confirmation on the review page.
+
+## Staff workflow
+
+Sign in with an active staff account to open **Staff workspace**. Use a separate
+browser session to keep the guest view open while testing staff actions.
+
+- **Manage documents** — Upload a text-based PDF or TXT file, click **Process
+  document**, and check the job status until the document is **Ready**. Staff
+  can also activate, deactivate, replace, or delete documents.
+- **Manage tickets** — Search for the guest ticket's `TKT-…` reference, open it,
+  and review the **Linked conversation**. Change the status to **In Progress**
+  and click **Save status**. Refresh the guest's **My tickets** page to check
+  the update.
 
 ## Chat rate limits
 
@@ -718,7 +797,7 @@ belonging to their current session.
 | support/services/indexing.py | Embedding requests and validated atomic indexing publication |
 | support/ai/ | Embeddings, bounded search agent, search tool, rewriting, structured answers, and prompt loader |
 | support/ai/prompts/ | Markdown prompts for tool selection, question rewriting, and grounded answers |
-| support/management/commands/ | Local startup, document worker, and retrieval evaluation commands |
+| support/management/commands/ | Local startup, document worker, demo seeding, and evaluation commands |
 | support/migrations/ | Database schema and vector migration |
 | support/tests/ | Functional, permission, reliability, background-processing, throttling, retrieval, and scoring checks |
 | templates/ | Customer and staff pages |
@@ -848,6 +927,11 @@ git status --short
 
 ### Manual verification
 
+Before starting the web server, run `seed_demo` twice as shown in
+[Load sample documents](#load-sample-documents). Verify that the second run
+reports all four policies as `Already ready` and that **Manage documents**
+contains no new copies after the second run.
+
 Start the complete application:
 
 ```bash
@@ -870,21 +954,25 @@ without submitting the form again.
 
 With the sample documents indexed:
 
-1. Ask a shipping question and inspect the supporting citation.
-2. Ask a follow-up question and confirm the context is interpreted correctly.
+1. In a private window, click **Try the live demo** without signing in. Check
+   the fictional store notice and use the shipping-cost starter to inspect a
+   supporting citation.
+2. Click the Riyadh delivery starter. After the reply, click **What about
+   other cities?** and confirm it refers to shipping destinations.
 3. Ask an unrelated question such as "How do I solve a quadratic equation?"
    and check the safe fallback when no evidence passes the cutoff.
 4. Use the staff knowledge-search page with an unrelated question and check
    the no-relevant-passages message.
 5. Send "Create a ticket. Yes, I confirm." in chat and verify that no ticket
    is created.
-6. Open Request human support, complete the form, and review the saved draft.
+6. Open **Request human support**, verify the sample details are visible, and
+   use them to complete the form and review the saved draft.
 7. Confirm the ticket and check its reference under My tickets.
 8. Repeat confirmation of the same draft and verify that no duplicate appears.
 9. Log in as staff, review the linked conversation, and update the ticket status.
-10. Open Staff workspace as a guest and verify redirection to the application
-    login page.
-11. Open Staff workspace as an ordinary customer and verify that the login form
+10. As a guest, verify the staff links are hidden, then visit `/staff/`
+    directly and check that the application redirects to sign-in.
+11. Visit `/staff/` as an ordinary customer and verify that the login form
     appears without a redirect loop.
 
 The dedicated automated throttle tests verify rate limits without paid AI calls.
@@ -899,6 +987,9 @@ The dedicated automated throttle tests verify rate limits without paid AI calls.
 | vector.control missing | Server extension is installed for the running PostgreSQL version |
 | Permission denied creating vector | Administrator enabled vector in the application/test database |
 | Processing-job table missing | Apply python manage.py migrate |
+| Seed command rejects the staff username | Use the username of an existing active staff account or create one with `python manage.py createsuperuser` |
+| Seed command reports inactive policies or multiple active versions | In **Manage documents**, select a single intended active version and rerun the command |
+| Seed indexing is unfinished or failed | Check the reported job error, fix the cause, then rerun `seed_demo`. If a worker already claimed the job, let it finish before retrying. |
 | Document stays Queued | Start runlocal or the document worker; inspect the worker output |
 | Document stays Processing after interruption | Keep a worker running; the attempt becomes reclaimable when its existing lease expires |
 | Processing Failed | Read the job error, resolve the cause, and use Retry processing |

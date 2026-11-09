@@ -6,6 +6,10 @@ const messageList = document.getElementById("chat-messages");
 const emptyNotice = document.getElementById("chat-empty");
 const statusText = document.getElementById("chat-status");
 
+const starters = document.getElementById("chat-starters");
+const riyadhStarter = document.getElementById("chat-starter-riyadh");
+const followUp = document.getElementById("chat-follow-up");
+
 let historyLoaded = false;
 
 let activeConversationId = null;
@@ -72,9 +76,25 @@ async function readResponse(response) {
     }
 }
 
+function setQuestionActionsEnabled(enabled) {
+    sendButton.disabled = !enabled;
+    starters.disabled = !enabled;
+}
+
+function updateFollowUp(messages) {
+    const question = messages.at(-2);
+    const answer = messages.at(-1);
+
+    followUp.hidden = !(
+        question?.role === "user" &&
+        question.content === riyadhStarter.dataset.question &&
+        answer?.role === "assistant"
+    );
+}
+
 async function loadHistory() {
     historyLoaded = false;
-    sendButton.disabled = true;
+    setQuestionActionsEnabled(false);
     reloadButton.disabled = true;
     statusText.textContent = "Loading conversation…";
 
@@ -104,6 +124,7 @@ async function loadHistory() {
         for (const message of data.messages) {
             addMessage(message);
         }
+        updateFollowUp(data.messages);
 
         historyLoaded = true;
         scrollToLatest();
@@ -113,12 +134,20 @@ async function loadHistory() {
         statusText.textContent = error.message;
 
     } finally {
-        sendButton.disabled = !historyLoaded;
+        setQuestionActionsEnabled(historyLoaded);
         reloadButton.disabled = false;
     }
 
     return historyLoaded;
 }
+
+starters.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-question]");
+    if (!button || starters.disabled) return;
+
+    questionInput.value = button.dataset.question;
+    form.requestSubmit();
+});
 
 reloadButton.addEventListener("click", loadHistory);
 
@@ -128,7 +157,7 @@ form.addEventListener("submit", async (event) => {
     const content = questionInput.value.trim();
     if (!content || sendButton.disabled) return;
 
-    sendButton.disabled = true;
+    setQuestionActionsEnabled(false);
     questionInput.disabled = true;
     reloadButton.disabled = true;
     statusText.textContent = "Finding an answer…";
@@ -168,6 +197,7 @@ form.addEventListener("submit", async (event) => {
         for (const message of data.messages) {
             addMessage(message);
         }
+        updateFollowUp(data.messages);
 
         scrollToLatest();
         questionInput.value = "";
@@ -188,7 +218,7 @@ form.addEventListener("submit", async (event) => {
         );
 
     } finally {
-        sendButton.disabled = !historyLoaded;
+        setQuestionActionsEnabled(historyLoaded);
         reloadButton.disabled = false;
         questionInput.disabled = false;
         questionInput.focus();

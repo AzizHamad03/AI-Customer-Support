@@ -60,23 +60,23 @@ def queue_document_processing(document_id):
 
 
 @transaction.atomic
-def claim_next_job():
+def claim_next_job(*, document_id=None):
     now = timezone.now()
 
-    job = (
-        DocumentProcessingJob.objects.select_for_update(
-            skip_locked=True
+    jobs = DocumentProcessingJob.objects.select_for_update(
+        skip_locked=True
+    ).filter(
+        Q(status=DocumentProcessingJob.Status.QUEUED)
+        | Q(
+            status=DocumentProcessingJob.Status.PROCESSING,
+            lease_expires_at__lte=now,
         )
-        .filter(
-            Q(status=DocumentProcessingJob.Status.QUEUED)
-            | Q(
-                status=DocumentProcessingJob.Status.PROCESSING,
-                lease_expires_at__lte=now,
-            )
-        )
-        .order_by("queued_at", "pk")
-        .first()
     )
+
+    if document_id is not None:
+        jobs = jobs.filter(document_id=document_id)
+
+    job = jobs.order_by("queued_at", "pk").first()
 
     if job is None:
         return None

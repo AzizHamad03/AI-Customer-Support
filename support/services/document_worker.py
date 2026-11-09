@@ -14,8 +14,8 @@ from support.services.processing_jobs import (
 logger = logging.getLogger(__name__)
 
 
-def process_next_document_job():
-    job = claim_next_job()
+def process_next_document_job(*, document_id=None):
+    job = claim_next_job(document_id=document_id)
 
     if job is None:
         return None

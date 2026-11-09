@@ -44,7 +44,7 @@
          aria-relevant="additions"></div>
 
     <p id="chat-empty">
-        Start with a question, such as “How much does shipping cost?”
+        Choose a question below or type your own.
     </p>
 
     <p id="chat-status" role="status"></p>
@@ -52,6 +52,34 @@
     <form id="chat-form"
           data-api-url="{% url 'support:chat_api' %}">
         {% csrf_token %}
+        <fieldset id="chat-starters" class="chat-starters" disabled>
+            <legend>Try a sample question</legend>
+
+            <div class="actions">
+                <button type="button" class="button secondary"
+                        data-question="How much does shipping cost?">
+                    How much does shipping cost?
+                </button>
+
+                <button type="button" class="button secondary"
+                        id="chat-starter-riyadh"
+                        data-question="How long does Riyadh delivery take?">
+                    How long does Riyadh delivery take?
+                </button>
+
+                <button type="button" class="button secondary"
+                        data-question="Where is order DEMO-123?">
+                    Where is order DEMO-123?
+                </button>
+
+                <span id="chat-follow-up" hidden>
+                    <button type="button" class="button secondary"
+                            data-question="What about other cities?">
+                        What about other cities?
+                    </button>
+                </span>
+            </div>
+        </fieldset>
 
         <label for="chat-question">Your question</label>
         <textarea id="chat-question"

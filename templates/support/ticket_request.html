@@ -16,6 +16,18 @@
 {% endfor %}
 
 <section class="panel">
+
+    <div class="demo-notice">
+        <strong>Sample details to try</strong>
+        <ul>
+            <li>Email address: <code>demo@example.com</code></li>
+            <li>Phone number: leave blank</li>
+            <li>Issue: I would like an update on my demo order.</li>
+            <li>Order reference: <code>DEMO-123</code></li>
+        </ul>
+        Demo tickets are for testing only.
+    </div>
+
     <form method="post">
         {% csrf_token %}
         {{ form.as_p }}

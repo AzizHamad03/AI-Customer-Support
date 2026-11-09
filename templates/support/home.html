@@ -19,12 +19,14 @@
 
     <div class="actions">
         <a class="button" href="{% url 'support:chat' %}">
-            Open customer chat
+            Try the live demo
         </a>
-        <a class="button secondary"
-           href="{% url 'support:staff_dashboard' %}">
-            Open staff workspace
-        </a>
+        {% if user.is_active and user.is_staff %}
+            <a class="button secondary"
+            href="{% url 'support:staff_dashboard' %}">
+                Open staff workspace
+            </a>
+        {% endif %}
         <a class="button secondary" href="{% url 'support:health' %}">
             Check application health
         </a>

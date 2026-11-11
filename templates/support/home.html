@@ -21,16 +21,31 @@
         <a class="button" href="{% url 'support:chat' %}">
             Try customer chat
         </a>
-        {% if user.is_active and user.is_staff %}
-            <a class="button secondary"
-            href="{% url 'support:staff_dashboard' %}">
+
+        {% if can_open_workspace %}
+            <a class="button secondary" href="{% url 'support:staff_dashboard' %}">
                 Open staff workspace
             </a>
+        {% elif show_demo_button %}
+            <form class="inline" method="post" action="{% url 'support:start_staff_demo' %}">
+                {% csrf_token %}
+                <button class="button secondary" type="submit">
+                    Try staff workspace
+                </button>
+            </form>
         {% endif %}
+
         <a class="button secondary" href="{% url 'support:health' %}">
             Check application health
         </a>
     </div>
+
+    {% if show_demo_button %}
+        <p>
+            Open your own demo workspace to upload and process a policy,
+            review a ticket, and read its linked chat. No sign-in needed.
+        </p>
+    {% endif %}
 </section>
 
 <h2>Features</h2>

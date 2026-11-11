@@ -10,15 +10,16 @@ from openai import APIConnectionError, APIStatusError
 from pydantic import ValidationError
 
 from support.ai.answers import ChatError, get_chat_model
-from support.ai.tools import TOOL_SCHEMAS, execute_tool
 from support.ai.prompt_loader import load_prompt
+from support.ai.tools import TOOL_SCHEMAS, execute_tool
 
 MAX_MODEL_TURNS = 3
 MAX_TOOL_CALLS = 2
 
 
+def search_with_agent(question, *, demo_user_id=None):
+    options = {"demo_user_id": demo_user_id} if demo_user_id is not None else {}
 
-def search_with_agent(question):
     model = get_chat_model().bind_tools(
         TOOL_SCHEMAS,
         strict=True,
@@ -93,6 +94,7 @@ def search_with_agent(question):
             result = execute_tool(
                 call["name"],
                 call["args"],
+                **options,
             )
         except (ValidationError, ValueError):
             result = {
@@ -109,7 +111,7 @@ def search_with_agent(question):
             ToolMessage(
                 content=json.dumps(result),
                 tool_call_id=call_id,
-            )
+            ),
         )
 
     raise ChatError(

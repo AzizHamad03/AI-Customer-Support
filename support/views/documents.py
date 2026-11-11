@@ -1,7 +1,6 @@
 import logging
 
 from django.contrib import messages
-from django.contrib.admin.views.decorators import staff_member_required
 from django.core.exceptions import ValidationError
 from django.db import DatabaseError
 from django.db.models.deletion import ProtectedError
@@ -11,32 +10,35 @@ from django.views.decorators.http import (
     require_POST,
 )
 
+from support.demo_access import workspace_documents, workspace_required
 from support.forms import DocumentReplacementForm, DocumentUploadForm
 from support.models import DocumentProcessingJob, KnowledgeDocument
 from support.services.documents import (
     create_document,
     create_replacement_document,
     delete_document,
-    list_documents,
     set_document_active,
 )
 from support.services.processing_jobs import queue_document_processing
 
 
-
-
 logger = logging.getLogger(__name__)
 
-@staff_member_required(login_url="support:login")
+
+@workspace_required
 def document_list(request):
     return render(
         request,
         "support/document_list.html",
-        {"documents": list_documents()},
+        {
+            "documents": workspace_documents(request.user).select_related(
+                "uploaded_by", "replaces"
+            )
+        },
     )
 
 
-@staff_member_required(login_url="support:login")
+@workspace_required
 def document_upload(request):
     if request.method == "POST":
         form = DocumentUploadForm(request.POST, request.FILES)
@@ -66,9 +68,9 @@ def document_upload(request):
     )
 
 
-@staff_member_required(login_url="support:login")
+@workspace_required
 def document_replace(request, pk):
-    original = get_object_or_404(KnowledgeDocument, pk=pk)
+    original = get_object_or_404(workspace_documents(request.user), pk=pk)
 
     if request.method == "POST":
         form = DocumentReplacementForm(request.POST, request.FILES)
@@ -110,10 +112,10 @@ def document_replace(request, pk):
     )
 
 
-@staff_member_required(login_url="support:login")
+@workspace_required
 def document_detail(request, pk):
     document = get_object_or_404(
-        KnowledgeDocument.objects.select_related("replaces"),
+        workspace_documents(request.user).select_related("replaces"),
         pk=pk,
     )
 
@@ -162,10 +164,10 @@ def document_detail(request, pk):
     )
 
 
-@staff_member_required(login_url="support:login")
+@workspace_required
 @require_POST
 def document_process(request, pk):
-    document = get_object_or_404(KnowledgeDocument, pk=pk)
+    document = get_object_or_404(workspace_documents(request.user), pk=pk)
 
     try:
         job, queued = queue_document_processing(document.pk)
@@ -208,22 +210,22 @@ def document_process(request, pk):
     )
 
 
-@staff_member_required(login_url="support:login")
+@workspace_required
 @require_POST
 def document_prepare_chunks(request, pk):
     return document_process(request, pk)
 
 
-@staff_member_required(login_url="support:login")
+@workspace_required
 @require_POST
 def document_index(request, pk):
     return document_process(request, pk)
 
 
-@staff_member_required(login_url="support:login")
+@workspace_required
 @require_POST
 def document_set_active(request, pk):
-    document = get_object_or_404(KnowledgeDocument, pk=pk)
+    document = get_object_or_404(workspace_documents(request.user), pk=pk)
     action = request.POST.get("action")
 
     if action not in {"activate", "deactivate"}:
@@ -245,12 +247,16 @@ def document_set_active(request, pk):
             else "Document deactivated.",
         )
 
-    return redirect("support:document_detail", pk=pk)
+    return redirect(
+        "support:document_detail",
+        pk=document.pk,
+    )
 
-@staff_member_required(login_url="support:login")
+
+@workspace_required
 @require_http_methods(["GET", "POST"])
 def document_delete(request, pk):
-    document = get_object_or_404(KnowledgeDocument, pk=pk)
+    document = get_object_or_404(workspace_documents(request.user), pk=pk)
 
     context = {
         "document": document,

@@ -7,6 +7,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from support.ai.prompt_loader import PROMPTS_DIR
+from support.demo_access import public_documents
 from support.models import KnowledgeDocument
 from support.services.chunking import CHUNK_WORDS, OVERLAP_WORDS
 from support.services.retrieval_evaluation import (
@@ -35,7 +36,7 @@ def digest(value):
 
 def corpus_snapshot():
     documents = list(
-        KnowledgeDocument.objects.filter(
+        public_documents().filter(
             is_active=True,
             status=KnowledgeDocument.Status.READY,
         ).order_by("title", "pk")

@@ -1,12 +1,12 @@
-from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import render
 
 from support.ai.embeddings import EmbeddingError
+from support.demo_access import is_demo_user, workspace_required
 from support.forms import KnowledgeSearchForm
 from support.services.retrieval import search_knowledge_base
 
 
-@staff_member_required(login_url="support:login")
+@workspace_required
 def knowledge_search(request):
     form = KnowledgeSearchForm(
         request.POST if request.method == "POST" else None
@@ -17,7 +17,8 @@ def knowledge_search(request):
     if request.method == "POST" and form.is_valid():
         try:
             results = search_knowledge_base(
-                form.cleaned_data["question"]
+                form.cleaned_data["question"],
+                demo_user_id=request.user.pk if is_demo_user(request.user) else None,
             )
         except EmbeddingError as exc:
             form.add_error(None, str(exc))

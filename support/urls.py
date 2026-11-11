@@ -30,7 +30,7 @@ from support.views.documents import (
 )
 from support.views.health import health
 from support.views.knowledge_search import knowledge_search
-from support.views.pages import home, staff_dashboard
+from support.views.pages import home, staff_dashboard, start_staff_demo
 from support.views.staff_tickets import (
     staff_ticket_detail,
     staff_ticket_list,
@@ -62,6 +62,7 @@ urlpatterns = [
 
     # Staff workspace
     path("staff/", staff_dashboard, name="staff_dashboard"),
+    path("staff/demo/start/", start_staff_demo, name="start_staff_demo"),
 
     # Staff documents
     path("staff/documents/", document_list, name="document_list"),

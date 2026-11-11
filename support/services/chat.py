@@ -9,6 +9,7 @@ from support.ai.answers import (
     generate_answer,
     make_standalone_question,
 )
+from support.demo_access import is_demo_user
 from support.models import (
     Conversation,
     DocumentChunk,
@@ -17,7 +18,6 @@ from support.models import (
     MessageCitation,
 )
 from support.services.accounts import ACTIVE_CONVERSATION_KEY
-
 
 
 class ConversationChanged(ChatError):
@@ -209,7 +209,14 @@ def send_message(conversation_id, question):
     ]
 
     standalone_question = make_standalone_question(question, history)
-    matches = search_with_agent(standalone_question)
+
+    if is_demo_user(conversation.user):
+        matches = search_with_agent(
+            standalone_question,
+            demo_user_id=conversation.user_id,
+        )
+    else:
+        matches = search_with_agent(standalone_question)
 
     source_map = {
         f"S{number}": match

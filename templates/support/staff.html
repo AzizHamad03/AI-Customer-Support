@@ -7,6 +7,7 @@
 <p class="eyebrow">Staff access</p>
 <h1>Staff workspace</h1>
 <p class="intro">Signed in as {{ user.username }}.</p>
+
 <details class="panel" open>
     <summary>Try the staff workflow</summary>
 
@@ -27,7 +28,7 @@
         </li>
         <li>
             Open <a href="{% url 'support:staff_ticket_list' %}">Manage tickets</a>
-            and find the ticket for order <strong>DEMO-123</strong>.
+            and find the ticket for order <strong>DEMO-SAMPLE</strong>.
             Read its linked conversation, then select
             <strong>In Progress</strong> and click <strong>Save status</strong>.
         </li>
@@ -71,12 +72,18 @@
         <a class="button" href="{% url 'support:document_list' %}">
             Manage documents
         </a>
-        <a class="button secondary"
-           href="{% url 'support:knowledge_search' %}">
+        <a class="button secondary" href="{% url 'support:knowledge_search' %}">
             Test knowledge search
         </a>
     </div>
 </section>
 
-<a href="{% url 'admin:index' %}">Open administration</a>
+<div class="actions">
+    <a class="button secondary" href="{% url 'support:chat' %}">
+        Back to customer chat
+    </a>
+    {% if user.is_staff %}
+        <a href="{% url 'admin:index' %}">Open administration</a>
+    {% endif %}
+</div>
 {% endblock %}

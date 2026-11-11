@@ -4,6 +4,7 @@ from django.core.files import File
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 
+from support.demo_access import public_documents
 from support.models import KnowledgeDocument
 from support.services.documents import create_document
 from support.services.document_worker import process_next_document_job
@@ -27,7 +28,7 @@ def get_or_create_policy(title, category, path, staff_user):
                 ["support.seed_demo"],
             )
 
-        matches = KnowledgeDocument.objects.filter(title=title)
+        matches = public_documents().filter(title=title)
 
         try:
             document = matches.get(is_active=True)

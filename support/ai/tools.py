@@ -39,7 +39,7 @@ TOOL_SCHEMAS = [
 ]
 
 
-def execute_tool(name, arguments):
+def execute_tool(name, arguments, *, demo_user_id=None):
     if name != "search_knowledge_base":
         raise ValueError("Unknown tool.")
 
@@ -49,6 +49,8 @@ def execute_tool(name, arguments):
     if not query:
         raise ValueError("Enter a non-empty search query.")
 
+    options = {"demo_user_id": demo_user_id} if demo_user_id is not None else {}
+
     return {
-        "matches": retrieve_knowledge_base(query),
+        "matches": retrieve_knowledge_base(query, **options),
     }

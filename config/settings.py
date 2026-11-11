@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
+PUBLIC_STAFF_DEMO = os.getenv("PUBLIC_STAFF_DEMO", "False").lower() == "true"
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 SECRET_KEY = os.getenv("SECRET_KEY", "")
 if not SECRET_KEY:

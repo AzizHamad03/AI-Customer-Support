@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count, Q
 
+from support.demo_access import workspace_documents, workspace_tickets
 from support.forms import SupportTicketForm
 from support.models import (
     Conversation,
@@ -105,6 +106,7 @@ def confirm_ticket_draft(
         fields=form.cleaned_data,
     )
 
+
 @transaction.atomic
 def create_support_ticket(*, conversation_id, request_id, fields):
     conversation = Conversation.objects.select_for_update().get(
@@ -144,6 +146,7 @@ def create_support_ticket(*, conversation_id, request_id, fields):
 
     return ticket
 
+
 def tickets_visible_to(*, session, user):
     tickets = SupportTicket.objects.select_related("conversation")
 
@@ -158,8 +161,10 @@ def tickets_visible_to(*, session, user):
         conversation__session_key=session.session_key,
     )
 
-def dashboard_summary():
-    ticket_counts = SupportTicket.objects.aggregate(
+
+def dashboard_summary(*, user=None):
+    documents = workspace_documents(user)
+    ticket_counts = workspace_tickets(user).aggregate(
         total=Count("id"),
         open=Count(
             "id",
@@ -177,16 +182,16 @@ def dashboard_summary():
 
     return {
         "tickets": ticket_counts,
-        "documents": KnowledgeDocument.objects.count(),
-        "ready_documents": KnowledgeDocument.objects.filter(
+        "documents": documents.count(),
+        "ready_documents": documents.filter(
             is_active=True,
             status=KnowledgeDocument.Status.READY,
         ).count(),
     }
 
 
-def search_tickets(query="", status=""):
-    tickets = SupportTicket.objects.select_related("conversation")
+def search_tickets(query="", status="", *, user=None):
+    tickets = workspace_tickets(user).select_related("conversation")
 
     if status:
         if status not in SupportTicket.Status.values:

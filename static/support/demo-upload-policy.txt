@@ -1,0 +1,5 @@
+Demo Gift Receipt Policy
+
+Customers can request a gift receipt within 14 days of delivery.
+To request one, open a support ticket and include the order reference.
+The support team reviews the request and sends the gift receipt by email.

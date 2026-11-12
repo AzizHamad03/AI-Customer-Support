@@ -35,6 +35,7 @@ INSTALLED_APPS = [
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -80,7 +81,7 @@ LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Asia/Riyadh"
 USE_I18N = True
 USE_TZ = True
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
@@ -124,3 +125,17 @@ LOGOUT_REDIRECT_URL = "support:home"
 
 # An interrupted processing attempt can be reclaimed after 15 minutes.
 DOCUMENT_JOB_LEASE_SECONDS = 900
+
+
+if not DEBUG:
+    render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+    render_url = os.getenv("RENDER_EXTERNAL_URL")
+
+    if render_host:
+        ALLOWED_HOSTS.append(render_host)
+
+    CSRF_TRUSTED_ORIGINS = [render_url] if render_url else []
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_HSTS_SECONDS = 3600

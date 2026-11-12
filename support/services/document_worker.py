@@ -9,7 +9,7 @@ from support.services.processing_jobs import (
     claim_next_job,
     finish_job,
 )
-
+from support.services.demo_quotas import DemoActionQuotaExceeded
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,7 @@ def process_next_document_job(*, document_id=None):
     except (
         DocumentProcessingError,
         EmbeddingError,
+        DemoActionQuotaExceeded,
         ValueError,
         KnowledgeDocument.DoesNotExist,
     ) as exc:

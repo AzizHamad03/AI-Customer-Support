@@ -25,6 +25,13 @@ class ChatThrottlingTests(TestCase):
         self.addCleanup(cache.clear)
 
         self.url = reverse("support:chat_api")
+        
+        daily_quota_patch = patch(
+            "support.services.demo_quotas.DEMO_CHAT_PER_VISITOR",
+            100,
+        )
+        daily_quota_patch.start()
+        self.addCleanup(daily_quota_patch.stop)
 
         send_patch = patch(
             "support.views.chat.send_message",

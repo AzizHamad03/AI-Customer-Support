@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from support.ai.answers import ChatError, get_chat_model
 from support.ai.prompt_loader import load_prompt
 from support.ai.tools import TOOL_SCHEMAS, execute_tool
+from support.services.demo_quotas import consume_openai_request_quota
 
 MAX_MODEL_TURNS = 3
 MAX_TOOL_CALLS = 2
@@ -41,6 +42,7 @@ def search_with_agent(question, *, demo_user_id=None):
 
     for _ in range(MAX_MODEL_TURNS):
         try:
+            consume_openai_request_quota()
             response = model.invoke(messages)
         except (
             APIConnectionError,

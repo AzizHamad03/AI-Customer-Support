@@ -11,6 +11,7 @@ from openai import (
 )
 from pydantic import BaseModel, Field, ValidationError
 from support.ai.prompt_loader import load_prompt
+from support.services.demo_quotas import consume_openai_request_quota
 
 class ChatError(Exception):
     pass
@@ -48,7 +49,8 @@ def get_chat_model():
         api_key=settings.OPENAI_API_KEY,
         temperature=0,
         timeout=30,
-        max_retries=1,
+        max_retries=0 if settings.DEMO_OPENAI_DAILY_LIMIT else 1,
+        max_tokens=1200 if settings.DEMO_OPENAI_DAILY_LIMIT else None,
     )
 
 
@@ -58,7 +60,7 @@ def invoke_structured(schema, system_prompt, payload):
             schema,
             method="json_schema",
         )
-
+        consume_openai_request_quota()
         result = model.invoke(
             [
                 ("system", system_prompt),

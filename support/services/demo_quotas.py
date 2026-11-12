@@ -3,6 +3,7 @@ from hashlib import sha256
 from datetime import UTC, datetime, time, timedelta
 
 from django.db import transaction
+from django.conf import settings
 
 from support.demo_access import is_demo_user
 from support.models import DemoQuotaBucket
@@ -140,3 +141,34 @@ def consume_demo_search_quota(user):
         DEMO_SEARCH_GLOBAL,
         "knowledge search",
     )
+
+
+def consume_openai_request_quota():
+    limit = settings.DEMO_OPENAI_DAILY_LIMIT
+    if limit == 0:
+        return
+
+    now = datetime.now(UTC)
+    tomorrow = datetime.combine(
+        now.date() + timedelta(days=1),
+        time.min,
+        tzinfo=UTC,
+    )
+    retry_after = int((tomorrow - now).total_seconds()) + 1
+
+    with transaction.atomic():
+        bucket, _ = DemoQuotaBucket.objects.select_for_update().get_or_create(
+            action="openai_request",
+            scope="global",
+            day=now.date(),
+        )
+
+        if bucket.used >= limit:
+            raise DemoActionQuotaExceeded(
+                "The demo has reached its daily AI limit. "
+                "Try again after midnight UTC.",
+                retry_after,
+            )
+
+        bucket.used += 1
+        bucket.save(update_fields=["used"])

@@ -27,7 +27,10 @@ from support.services.chat import (
     get_conversation,
     send_message,
 )
-
+from support.services.demo_quotas import (
+    DemoActionQuotaExceeded,
+    consume_demo_chat_quota,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +80,7 @@ def chat_api(request):
                 status=409,
             )
 
+        consume_demo_chat_quota(request.user, request.session)
         messages = send_message(
             conversation.pk,
             serializer.validated_data["content"],
@@ -86,6 +90,13 @@ def chat_api(request):
         return Response(
             {"error": str(exc)},
             status=409,
+        )
+
+    except DemoActionQuotaExceeded as exc:
+        return Response(
+            {"error": str(exc)},
+            status=429,
+            headers={"Retry-After": str(exc.retry_after)},
         )
 
     except (ChatError, EmbeddingError) as exc:

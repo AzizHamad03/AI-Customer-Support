@@ -10,17 +10,20 @@ Staff upload knowledge documents and queue processing from the browser.
 A background worker extracts text, prepares chunks, and generates embeddings.
 One local startup command launches both the website and worker.
 
-[Try the guest demo](#try-the-guest-demo) · [Local installation](#installation) ·
+[Live demo](#live-demo) · [Local installation](#installation) ·
 [Load sample documents](#load-sample-documents) · [Staff workflow](#staff-workflow) ·
 [Performance evaluation](#performance-evaluation)
 
-## Try the guest demo
+## Live demo
 
-After [local setup](#installation), open <http://127.0.0.1:8000/> and click
-**Try the live demo**. You can use chat without signing in. For a clean guest
-session, open the page in a private browser window.
+[Open the live demo](https://ai-customer-support-demo.onrender.com/)
 
-Click a sample question to send it, or type your own.
+Both visitor flows are available without signing in. Open the demo in a private
+browser window for a fresh session.
+
+### Try customer chat
+
+Click **Try customer chat**. Choose a starter question or type your own.
 
 | Try this | What to look for |
 | --- | --- |
@@ -30,6 +33,21 @@ Click a sample question to send it, or type your own.
 
 The store and its policies are fictional. Use the [sample ticket details](#support-ticket-demonstration)
 when testing and keep real personal information out of chat and ticket forms.
+
+### Try staff workspace
+
+From the homepage, click **Try staff workspace** to open a workspace scoped to
+your browser session. Open the sample ticket and inspect its linked conversation,
+or download the sample TXT file, upload it, and click **Process document**.
+When the document reaches **Ready**, try a question about it in **Knowledge search**
+or return to chat in the same browser session.
+
+The public demo limits uploads, processing, chat, and knowledge search. Use the
+provided sample file or your own fictional content. The worker periodically
+cleans up expired demo workspaces and their uploads.
+
+For local development, follow [Installation](#installation) and open
+<http://127.0.0.1:8000/> after starting the app.
 
 ## Problem statement
 
@@ -292,8 +310,8 @@ Keep the signing key stable across restarts.
 The supplied `.env.example` sets `DEBUG=True` for local development.
 
 When `DEBUG=False`, `SECRET_KEY` must be explicitly configured.
-Disabling debug mode alone does not provide a complete production deployment
-configuration.
+The hosted demo runs on Render with Gunicorn, WhiteNoise, a document worker,
+managed PostgreSQL with pgvector, and a persistent disk for uploads.
 
 If `.env` already exists, compare it with the example instead of overwriting
 working credentials.
@@ -309,6 +327,8 @@ working credentials.
 | DB_HOST | Database host; defaults to localhost |
 | DB_PORT | Database port; defaults to 5432 |
 | OPENAI_API_KEY | Required for embeddings and live AI answers |
+| PUBLIC_STAFF_DEMO | Set to True to enable the no-sign-in staff demo |
+| DEMO_OPENAI_DAILY_LIMIT | Shared daily OpenAI request limit, with 0 disabling the application cap |
 | CHAT_MODEL | Chat model; defaults to gpt-4.1-mini |
 | RETRIEVAL_MAX_DISTANCE | Maximum accepted cosine distance; defaults to 0.80 |
 
@@ -351,7 +371,7 @@ Keep it running while using the application. Press **Control+C** to stop both.
 
 Open <http://127.0.0.1:8000/>.
 
-- Click **Try the live demo** for guest chat. Use **Create account** or **Log in**
+- Click **Try customer chat** for guest chat. Use **Create account** or **Log in**
   to access account-owned conversation history.
 - Staff can use Log in with their existing staff credentials; the default
   destination after login is the staff workspace.
@@ -462,7 +482,7 @@ command loads the sample documents.
    embedding generation. Processing continues after you leave the page.
 5. Check that the job reaches **Succeeded** and the document is **Ready** and
    active. If processing fails, resolve the error and click **Retry processing**.
-6. Open **Try the live demo**, ask a sample question, and expand its citation.
+6. Open **Try customer chat**, ask a sample question, and expand its citation.
 
 Use these titles and categories:
 
@@ -686,12 +706,14 @@ For the current direct-server setup, DRF's `NUM_PROXIES` is set to `0`.
 Guest throttling uses `REMOTE_ADDR` and ignores `X-Forwarded-For` when
 identifying the client.
 
-If the application is later deployed behind a reverse proxy, review the
-proxy configuration and client-IP handling before changing `NUM_PROXIES`.
+For deployments behind a reverse proxy, review the proxy configuration and
+client-IP handling before changing `NUM_PROXIES`. The public demo also uses
+PostgreSQL-backed daily quotas for visitor actions and OpenAI requests.
 
-When the allowance is exhausted, the API returns HTTP 429 with a `detail`
-message and a `Retry-After` header. Rejected requests do not reach the chat
-service or trigger AI calls.
+When the per-minute allowance is exhausted, the API returns HTTP 429 with a
+`detail` message and a `Retry-After` header. The daily visitor quota returns an
+`error` message and the same header. Either check can reject a message before
+the chat service runs.
 
 `GET /api/chat/` remains available for reading conversation history.
 The browser displays the rate-limit message and preserves the typed question.
@@ -739,9 +761,8 @@ Successful chat responses include `conversation_id` and `messages`.
 | 429 | Chat sending allowance exhausted |
 | 503 | AI service or database temporarily unavailable |
 
-Rate-limit responses include `detail` and a `Retry-After` header. Other chat
-failures may return an `error` field, while serializer validation failures
-identify the invalid field.
+Rate-limit responses include `detail` or `error` and a `Retry-After` header.
+Serializer validation failures identify the invalid field.
 
 Chat requests use the browser session cookie. POST requests require a CSRF
 token in the `X-CSRFToken` header, including for anonymous visitors.
@@ -954,7 +975,7 @@ without submitting the form again.
 
 With the sample documents indexed:
 
-1. In a private window, click **Try the live demo** without signing in. Check
+1. In a private window, click **Try customer chat** without signing in. Check
    the fictional store notice and use the shipping-cost starter to inspect a
    supporting citation.
 2. Click the Riyadh delivery starter. After the reply, click **What about
@@ -1177,12 +1198,9 @@ Possible later improvements include:
   that use store-related vocabulary.
 - Recalibrating retrieval filtering as the knowledge base grows.
 - Adding pagination or bounded loading for long conversation histories.
-- Implementing a production process manager (systemd, Supervisor, Docker)
-  to run the web app and worker as persistent services.
 
 Document processing now runs through a background worker.
 Long conversation histories are still loaded in full.
 
 The current scope is one demonstration store with English text chat.
-The application does not yet include password recovery, email verification,
-or production deployment configuration.
+The application does not yet include password recovery or email verification.

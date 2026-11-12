@@ -15,6 +15,7 @@ from support.services.demo_quotas import (
     DEMO_UPLOAD_MAX_BYTES,
     DemoUploadQuotaExceeded,
     reserve_demo_upload,
+    DemoActionQuotaExceeded,
 )
 from support.forms import DocumentReplacementForm, DocumentUploadForm
 from support.models import DocumentProcessingJob, KnowledgeDocument
@@ -222,6 +223,9 @@ def document_process(request, pk):
             "This document is no longer available.",
         )
         return redirect("support:document_list")
+
+    except DemoActionQuotaExceeded as exc:
+        messages.error(request, str(exc))
 
     except DatabaseError:
         logger.exception("Could not queue document processing")

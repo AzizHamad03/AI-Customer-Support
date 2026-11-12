@@ -69,7 +69,9 @@ DEMO_CHAT_PER_VISITOR = 20
 DEMO_CHAT_GLOBAL = 150
 DEMO_SEARCH_PER_WORKSPACE = 10
 DEMO_SEARCH_GLOBAL = 100
-
+DEMO_WORKSPACE_STARTS_GLOBAL = 30
+DEMO_PROCESSING_PER_WORKSPACE = 4
+DEMO_PROCESSING_GLOBAL = 60
 
 class DemoActionQuotaExceeded(Exception):
     def __init__(self, message, retry_after):
@@ -86,10 +88,13 @@ def _consume_daily_quota(action, scope, visitor_limit, global_limit, label):
     )
     retry_after = int((tomorrow - now).total_seconds()) + 1
 
-    limits = (
+    limits = [
         ("global", global_limit, f"The demo has reached its daily {label} limit."),
-        (scope, visitor_limit, f"You’ve reached your daily {label} limit."),
-    )
+    ]
+    if scope is not None:
+        limits.append(
+            (scope, visitor_limit, f"You’ve reached your daily {label} limit.")
+        )
 
     with transaction.atomic():
         for bucket_scope, limit, message in limits:
@@ -172,3 +177,25 @@ def consume_openai_request_quota():
 
         bucket.used += 1
         bucket.save(update_fields=["used"])
+
+def consume_workspace_start_quota():
+    _consume_daily_quota(
+        "workspace_start",
+        None,
+        None,
+        DEMO_WORKSPACE_STARTS_GLOBAL,
+        "new workspace",
+    )
+
+
+def consume_document_processing_quota(user):
+    if not is_demo_user(user):
+        return
+
+    _consume_daily_quota(
+        "document_processing",
+        f"workspace:{user.pk}",
+        DEMO_PROCESSING_PER_WORKSPACE,
+        DEMO_PROCESSING_GLOBAL,
+        "document processing",
+    )

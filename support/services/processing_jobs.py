@@ -10,7 +10,7 @@ from support.models import (
     DocumentProcessingJob,
     KnowledgeDocument,
 )
-
+from support.services.demo_quotas import consume_document_processing_quota
 
 class JobLeaseLost(Exception):
     pass
@@ -32,6 +32,8 @@ def queue_document_processing(document_id):
 
     if not created and job.is_busy:
         return job, False
+
+    consume_document_processing_quota(document.uploaded_by)
 
     if not created:
         job.status = DocumentProcessingJob.Status.QUEUED

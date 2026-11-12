@@ -7,6 +7,11 @@ from django.db import transaction
 from django.http import Http404, HttpResponseForbidden
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
+from django.http import HttpResponse
+from support.services.demo_quotas import (
+    DemoActionQuotaExceeded,
+    consume_workspace_start_quota,
+)
 
 from support.demo_access import DEMO_GROUP, can_open_workspace, workspace_required
 from support.models import Conversation, Message
@@ -41,6 +46,15 @@ def start_staff_demo(request):
         )
 
     with transaction.atomic():
+        try:
+            consume_workspace_start_quota()
+        except DemoActionQuotaExceeded as exc:
+            return HttpResponse(
+                str(exc),
+                status=429,
+                content_type="text/plain; charset=utf-8",
+                headers={"Retry-After": str(exc.retry_after)},
+            )
         demo_group, _ = Group.objects.get_or_create(name=DEMO_GROUP)
         demo_user = get_user_model().objects.create_user(
             username=f"demo-{uuid4().hex}",

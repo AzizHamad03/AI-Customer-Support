@@ -1,5 +1,6 @@
-from time import sleep
+from time import monotonic, sleep
 
+from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 from django.db import close_old_connections
 
@@ -34,17 +35,25 @@ class Command(BaseCommand):
             "Document worker started. Press Ctrl+C to stop."
         )
 
+        next_cleanup_at = monotonic()
+
         try:
             while True:
                 close_old_connections()
+
+                if not options["once"] and monotonic() >= next_cleanup_at:
+                    call_command(
+                        "cleanup_demo_workspaces",
+                        stdout=self.stdout,
+                        stderr=self.stderr,
+                    )
+                    next_cleanup_at = monotonic() + 3600
 
                 result = process_next_document_job()
 
                 if result is not None:
                     job_id, status = result
-                    self.stdout.write(
-                        f"Job {job_id}: {status}"
-                    )
+                    self.stdout.write(f"Job {job_id}: {status}")
 
                 if options["once"]:
                     break

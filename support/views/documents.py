@@ -10,7 +10,12 @@ from django.views.decorators.http import (
     require_POST,
 )
 
-from support.demo_access import workspace_documents, workspace_required
+from support.demo_access import is_demo_user, workspace_documents, workspace_required
+from support.services.demo_quotas import (
+    DEMO_UPLOAD_MAX_BYTES,
+    DemoUploadQuotaExceeded,
+    reserve_demo_upload,
+)
 from support.forms import DocumentReplacementForm, DocumentUploadForm
 from support.models import DocumentProcessingJob, KnowledgeDocument
 from support.services.documents import (
@@ -38,50 +43,85 @@ def document_list(request):
     )
 
 
+def _valid_upload(form, user):
+    if not form.is_valid():
+        return False
+
+    if is_demo_user(user) and form.cleaned_data["file"].size > DEMO_UPLOAD_MAX_BYTES:
+        form.add_error("file", "Demo files must be 2 MiB or smaller.")
+        return False
+
+    return True
+
+
+def _upload_response(request, template, context, quota_error=None):
+    if quota_error is None:
+        return render(request, template, context)
+
+    context["form"].add_error(None, str(quota_error))
+    response = render(request, template, context, status=429)
+    response["Retry-After"] = str(quota_error.retry_after)
+    return response
+
+
 @workspace_required
 def document_upload(request):
+    form = DocumentUploadForm()
+    quota_error = None
+
     if request.method == "POST":
         form = DocumentUploadForm(request.POST, request.FILES)
 
-        if form.is_valid():
-            document = create_document(
-                title=form.cleaned_data["title"],
-                category=form.cleaned_data["category"],
-                file=form.cleaned_data["file"],
-                uploaded_by=request.user,
-            )
-            messages.success(
-                request,
-                "Document uploaded. Click Process document to prepare it for chat.",
-            )
-            return redirect(
-                "support:document_detail",
-                pk=document.pk,
-            )
-    else:
-        form = DocumentUploadForm()
+        if _valid_upload(form, request.user):
+            try:
+                with reserve_demo_upload(request.user):
+                    document = create_document(
+                        title=form.cleaned_data["title"],
+                        category=form.cleaned_data["category"],
+                        file=form.cleaned_data["file"],
+                        uploaded_by=request.user,
+                    )
+            except DemoUploadQuotaExceeded as exc:
+                quota_error = exc
+            else:
+                messages.success(
+                    request,
+                    "Document uploaded. Click Process document to prepare it for chat.",
+                )
+                return redirect("support:document_detail", pk=document.pk)
 
-    return render(
+    if is_demo_user(request.user):
+        form.fields["file"].help_text = (
+            "Upload a text-based PDF or UTF-8 TXT file, up to 2 MiB."
+        )
+
+    return _upload_response(
         request,
         "support/document_upload.html",
         {"form": form},
+        quota_error,
     )
 
 
 @workspace_required
 def document_replace(request, pk):
     original = get_object_or_404(workspace_documents(request.user), pk=pk)
+    form = DocumentReplacementForm()
+    quota_error = None
 
     if request.method == "POST":
         form = DocumentReplacementForm(request.POST, request.FILES)
 
-        if form.is_valid():
+        if _valid_upload(form, request.user):
             try:
-                replacement = create_replacement_document(
-                    document_id=original.pk,
-                    file=form.cleaned_data["file"],
-                    uploaded_by=request.user,
-                )
+                with reserve_demo_upload(request.user):
+                    replacement = create_replacement_document(
+                        document_id=original.pk,
+                        file=form.cleaned_data["file"],
+                        uploaded_by=request.user,
+                    )
+            except DemoUploadQuotaExceeded as exc:
+                quota_error = exc
             except ValidationError as exc:
                 form.add_error(None, " ".join(exc.messages))
             except ValueError as exc:
@@ -98,17 +138,21 @@ def document_replace(request, pk):
                     "support:document_detail",
                     pk=replacement.pk,
                 )
-    else:
-        form = DocumentReplacementForm()
 
-    return render(
+    if is_demo_user(request.user):
+        form.fields["file"].help_text = (
+            "Upload a text-based PDF or UTF-8 TXT file, up to 2 MiB."
+        )
+
+    return _upload_response(
         request,
         "support/document_replace.html",
         {
+            "form": form,
             "document": original,
             "next_version": original.version + 1,
-            "form": form,
         },
+        quota_error,
     )
 
 
